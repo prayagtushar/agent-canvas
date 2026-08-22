@@ -26,15 +26,28 @@ pub fn run(port: u16, token: String, node_id: String) {
             continue;
         };
         let params = msg.get("params").cloned().unwrap_or_else(|| json!({}));
-        let response =
-            handle(method.to_string(), params, id.clone(), port, &token, &node_id);
+        let response = handle(
+            method.to_string(),
+            params,
+            id.clone(),
+            port,
+            &token,
+            &node_id,
+        );
         let mut out = std::io::stdout().lock();
         let _ = writeln!(out, "{}", response);
         let _ = out.flush();
     }
 }
 
-fn handle(method: String, params: Value, id: Value, port: u16, token: &str, node_id: &str) -> Value {
+fn handle(
+    method: String,
+    params: Value,
+    id: Value,
+    port: u16,
+    token: &str,
+    node_id: &str,
+) -> Value {
     match method.as_str() {
         "initialize" => envelope(
             id,
@@ -188,13 +201,7 @@ fn urlencode(s: &str) -> String {
     out
 }
 
-fn bus_http(
-    port: u16,
-    token: &str,
-    verb: &str,
-    path: &str,
-    body: Option<&Value>,
-) -> Option<Value> {
+fn bus_http(port: u16, token: &str, verb: &str, path: &str, body: Option<&Value>) -> Option<Value> {
     let mut stream = TcpStream::connect(("127.0.0.1", port)).ok()?;
     stream
         .set_read_timeout(Some(Duration::from_secs(180)))

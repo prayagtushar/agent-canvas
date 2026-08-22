@@ -33,18 +33,66 @@ pub struct Harness {
 
 /// Add a harness by adding a row here and a match arm in `start_process`.
 pub const HARNESSES: &[Harness] = &[
-    Harness { name: "claude",       label: "Claude Code",  wiring: BusWiring::McpConfigFlag },
-    Harness { name: "codex",        label: "Codex",        wiring: BusWiring::CodexToml },
-    Harness { name: "gemini",       label: "Gemini CLI",   wiring: BusWiring::GeminiSettings },
-    Harness { name: "opencode",     label: "opencode",     wiring: BusWiring::XdgConfig },
-    Harness { name: "qwen",         label: "Qwen Code",    wiring: BusWiring::GeminiSettings },
-    Harness { name: "crush",        label: "Crush",        wiring: BusWiring::XdgConfig },
-    Harness { name: "goose",        label: "Goose",        wiring: BusWiring::None },
-    Harness { name: "aider",        label: "Aider",        wiring: BusWiring::None },
-    Harness { name: "amp",          label: "Amp",          wiring: BusWiring::None },
-    Harness { name: "cursor-agent", label: "Cursor Agent", wiring: BusWiring::None },
-    Harness { name: "copilot",      label: "Copilot CLI",  wiring: BusWiring::None },
-    Harness { name: "droid",        label: "Droid",        wiring: BusWiring::None },
+    Harness {
+        name: "claude",
+        label: "Claude Code",
+        wiring: BusWiring::McpConfigFlag,
+    },
+    Harness {
+        name: "codex",
+        label: "Codex",
+        wiring: BusWiring::CodexToml,
+    },
+    Harness {
+        name: "gemini",
+        label: "Gemini CLI",
+        wiring: BusWiring::GeminiSettings,
+    },
+    Harness {
+        name: "opencode",
+        label: "opencode",
+        wiring: BusWiring::XdgConfig,
+    },
+    Harness {
+        name: "qwen",
+        label: "Qwen Code",
+        wiring: BusWiring::GeminiSettings,
+    },
+    Harness {
+        name: "crush",
+        label: "Crush",
+        wiring: BusWiring::XdgConfig,
+    },
+    Harness {
+        name: "goose",
+        label: "Goose",
+        wiring: BusWiring::None,
+    },
+    Harness {
+        name: "aider",
+        label: "Aider",
+        wiring: BusWiring::None,
+    },
+    Harness {
+        name: "amp",
+        label: "Amp",
+        wiring: BusWiring::None,
+    },
+    Harness {
+        name: "cursor-agent",
+        label: "Cursor Agent",
+        wiring: BusWiring::None,
+    },
+    Harness {
+        name: "copilot",
+        label: "Copilot CLI",
+        wiring: BusWiring::None,
+    },
+    Harness {
+        name: "droid",
+        label: "Droid",
+        wiring: BusWiring::None,
+    },
 ];
 
 fn find_harness(name: &str) -> Option<&'static Harness> {
@@ -117,8 +165,14 @@ pub fn launch_agent(
     Ok(id)
 }
 
-pub fn send_prompt(shared: &Arc<crate::bus::BusShared>, id: &str, text: &str) -> Result<(), String> {
-    let node = shared.get_node(id).ok_or_else(|| "unknown node".to_string())?;
+pub fn send_prompt(
+    shared: &Arc<crate::bus::BusShared>,
+    id: &str,
+    text: &str,
+) -> Result<(), String> {
+    let node = shared
+        .get_node(id)
+        .ok_or_else(|| "unknown node".to_string())?;
     if node.status == "running" {
         return Err("agent busy".to_string());
     }
@@ -165,7 +219,11 @@ fn escape_toml(s: &str) -> String {
     s.replace('\\', "\\\\").replace('"', "\\\"")
 }
 
-fn write_mcp_configs(shared: &crate::bus::BusShared, id: &str, harness: &str) -> Result<(), String> {
+fn write_mcp_configs(
+    shared: &crate::bus::BusShared,
+    id: &str,
+    harness: &str,
+) -> Result<(), String> {
     let base = config_base(id)?;
     std::fs::create_dir_all(&base).map_err(|e| e.to_string())?;
     let exe = std::env::current_exe().map_err(|e| e.to_string())?;
@@ -173,7 +231,9 @@ fn write_mcp_configs(shared: &crate::bus::BusShared, id: &str, harness: &str) ->
     let port = (*shared.port.lock()).to_string();
     let token = shared.token.lock().clone();
 
-    let wiring = find_harness(harness).map(|h| h.wiring).unwrap_or(BusWiring::None);
+    let wiring = find_harness(harness)
+        .map(|h| h.wiring)
+        .unwrap_or(BusWiring::None);
     match wiring {
         BusWiring::McpConfigFlag | BusWiring::GeminiSettings => {
             let file = if wiring == BusWiring::McpConfigFlag {

@@ -256,7 +256,12 @@ impl BusShared {
         Ok(t)
     }
 
-    pub fn complete_task(&self, task_id: &str, node_id: &str, result: &str) -> Result<Task, String> {
+    pub fn complete_task(
+        &self,
+        task_id: &str,
+        node_id: &str,
+        result: &str,
+    ) -> Result<Task, String> {
         let mut tasks = self.tasks.lock();
         let t = tasks
             .get_mut(task_id)
@@ -357,7 +362,7 @@ impl BusShared {
                 e.key.to_lowercase().contains(&q) || e.value.to_lowercase().contains(&q)
             });
         }
-        out.sort_by(|a, b| b.ts.cmp(&a.ts));
+        out.sort_by_key(|e| std::cmp::Reverse(e.ts));
         out
     }
 

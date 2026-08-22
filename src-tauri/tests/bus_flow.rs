@@ -41,15 +41,20 @@ fn messages_only_cross_an_edge() {
     bus.register_node(node("c", "gemini"));
     bus.edges.lock().push(("a".into(), "b".into()));
 
-    bus.add_message("a", "b", "take the parser").expect("a→b is connected");
-    bus.add_message("a", "c", "psst").expect_err("a→c has no edge");
+    bus.add_message("a", "b", "take the parser")
+        .expect("a→b is connected");
+    bus.add_message("a", "c", "psst")
+        .expect_err("a→c has no edge");
 
     let inbox = bus.drain_inbox("b");
     assert_eq!(inbox.len(), 1);
     assert_eq!(inbox[0].text, "take the parser");
     assert_eq!(bus.get_node("b").unwrap().unread, 1);
 
-    assert!(bus.drain_inbox("b").is_empty(), "draining consumes the inbox");
+    assert!(
+        bus.drain_inbox("b").is_empty(),
+        "draining consumes the inbox"
+    );
     assert!(bus.drain_inbox("c").is_empty(), "c received nothing");
 }
 
@@ -67,9 +72,12 @@ fn a_task_moves_from_todo_to_done() {
     assert_eq!(claimed.status, "claimed");
     assert_eq!(claimed.owner.as_deref(), Some("b"));
 
-    bus.claim_task(&task.id, "a").expect_err("an owned task cannot be re-claimed");
+    bus.claim_task(&task.id, "a")
+        .expect_err("an owned task cannot be re-claimed");
 
-    let done = bus.complete_task(&task.id, "b", "landed in bus.rs").expect("b completes it");
+    let done = bus
+        .complete_task(&task.id, "b", "landed in bus.rs")
+        .expect("b completes it");
     assert_eq!(done.status, "done");
     assert_eq!(done.result, "landed in bus.rs");
 
@@ -90,9 +98,13 @@ fn ask_user_blocks_until_the_operator_answers() {
         "waiting",
         "asking parks the agent"
     );
-    assert!(bus.approval_answer(&approval.id).is_none(), "nothing to read yet");
+    assert!(
+        bus.approval_answer(&approval.id).is_none(),
+        "nothing to read yet"
+    );
 
-    bus.answer_approval(&approval.id, "deny").expect("operator answers");
+    bus.answer_approval(&approval.id, "deny")
+        .expect("operator answers");
     assert_eq!(bus.approval_answer(&approval.id).as_deref(), Some("deny"));
 
     bus.answer_approval("apr-does-not-exist", "yes")

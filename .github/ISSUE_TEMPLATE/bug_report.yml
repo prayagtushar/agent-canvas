@@ -1,0 +1,29 @@
+name: Bug report
+description: Something in Agent Canvas does not work
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you did, and what you saw instead of what you expected.
+    validations:
+      required: true
+  - type: input
+    id: os
+    attributes:
+      label: Operating system
+      placeholder: macOS 15.2 (Apple silicon)
+    validations:
+      required: true
+  - type: input
+    id: harness
+    attributes:
+      label: Which harness
+      description: The CLI and its version, e.g. `claude 2.1.233`
+  - type: textarea
+    id: output
+    attributes:
+      label: Agent output
+      description: Whatever the agent window printed. Redact anything private.
+      render: shell

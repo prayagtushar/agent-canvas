@@ -83,11 +83,21 @@ fn create_worktree(repo: String, name: String) -> Result<String, String> {
     }
     let slug: String = name
         .chars()
-        .map(|c| if c.is_ascii_alphanumeric() || c == '-' { c } else { '-' })
+        .map(|c| {
+            if c.is_ascii_alphanumeric() || c == '-' {
+                c
+            } else {
+                '-'
+            }
+        })
         .collect::<String>()
         .trim_matches('-')
         .to_lowercase();
-    let slug = if slug.is_empty() { "agent".to_string() } else { slug };
+    let slug = if slug.is_empty() {
+        "agent".to_string()
+    } else {
+        slug
+    };
 
     let root = git(&repo, &["rev-parse", "--show-toplevel"])?;
     let dir = std::path::Path::new(&root)
@@ -197,9 +207,10 @@ fn add_edge(shared: State<'_, Shared>, a: String, b: String) -> Result<(), Strin
 
 #[tauri::command]
 fn remove_edge(shared: State<'_, Shared>, a: String, b: String) -> Result<(), String> {
-    shared.edges.lock().retain(|(x, y)| {
-        !((x == &a && y == &b) || (x == &b && y == &a))
-    });
+    shared
+        .edges
+        .lock()
+        .retain(|(x, y)| !((x == &a && y == &b) || (x == &b && y == &a)));
     emit_edges(&shared);
     Ok(())
 }

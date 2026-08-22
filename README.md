@@ -1,5 +1,9 @@
 # Agent Canvas
 
+[![CI](https://github.com/prayagtushar/agent-canvas/actions/workflows/ci.yml/badge.svg)](https://github.com/prayagtushar/agent-canvas/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Built with Tauri](https://img.shields.io/badge/built%20with-Tauri%202-24C8DB.svg)](https://tauri.app)
+
 A desktop workspace where several AI coding agents run as **real processes** on a
 spatial canvas. They discover each other only through connections you draw,
 share a task board and a common memory, message one another, and escalate
@@ -117,11 +121,11 @@ drag between two agents' green dots to connect them, and ask one to
 
 ## Security
 
-The Bus listens on `127.0.0.1` on a random port and requires a bearer token on
-**every** route. The token is generated per launch and is never written outside
-the per-agent config files in your cache directory. Agents run with the
-permissions of whoever launched the app — this is a tool for running code you
-intend to run, on a machine you control.
+Read [SECURITY.md](SECURITY.md) before running agents on anything you care
+about. In short: the Bus listens on `127.0.0.1` on a random port and requires a bearer token on
+**every** route, with a fresh token per launch that never leaves the machine.
+Agents run with the permissions of whoever launched the app — this is a tool
+for running code you intend to run, on hardware you control.
 
 ## Tests
 
@@ -132,11 +136,26 @@ cd src-tauri && cargo test
 `tests/bus_flow.rs` covers peer scoping, edge-gated messaging, the task
 lifecycle, human escalation, and disconnection.
 
+## Project status
+
+Pre-1.0 and honest about it. The coordination core is covered by tests and the
+Claude Code and opencode adapters are exercised regularly; the other harness
+adapters are written from each CLI's documented flags but not yet run. Issues
+and PRs are welcome, particularly harness reports — see the table above.
+
 ## Contributing
 
-See [CONTRIBUTING.md](CONTRIBUTING.md). [AGENTS.md](AGENTS.md) is the working
-memory for the project — read it before making changes.
+See [CONTRIBUTING.md](CONTRIBUTING.md) for the layout, the verification
+commands, and the house rules. [AGENTS.md](AGENTS.md) is the working memory for
+the project — read it before making changes. Please also read the
+[Code of Conduct](CODE_OF_CONDUCT.md).
+
+Security issues go through [SECURITY.md](SECURITY.md), not the public tracker.
 
 ## License
 
 MIT — see [LICENSE](LICENSE).
+
+Agent Canvas bundles [Geist Sans](https://github.com/vercel/geist-font) and
+[JetBrains Mono](https://github.com/JetBrains/JetBrainsMono), both under the
+SIL Open Font License.

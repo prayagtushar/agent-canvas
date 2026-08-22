@@ -66,7 +66,11 @@ async fn auth(State((_, token)): State<Ctx>, req: Request, next: Next) -> Respon
     if ok {
         next.run(req).await
     } else {
-        (StatusCode::UNAUTHORIZED, Json(json!({"error": "unauthorized"}))).into_response()
+        (
+            StatusCode::UNAUTHORIZED,
+            Json(json!({"error": "unauthorized"})),
+        )
+            .into_response()
     }
 }
 
