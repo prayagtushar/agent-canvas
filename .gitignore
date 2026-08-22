@@ -14,3 +14,7 @@ src-tauri/gen/schemas/
 *.log
 .vscode/
 .idea/
+
+# local agent tooling, not part of this project
+.agents/
+skills-lock.json
