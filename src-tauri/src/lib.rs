@@ -126,6 +126,29 @@ fn remove_worktree(repo: String, path: String) -> Result<(), String> {
 }
 
 #[tauri::command]
+fn get_comm_state(shared: State<'_, Shared>) -> Value {
+    shared.comm_state()
+}
+
+#[tauri::command]
+fn set_auto_comm(shared: State<'_, Shared>, on: bool) {
+    *shared.auto_comm.lock() = on;
+    shared.emit_comm();
+}
+
+#[tauri::command]
+fn set_message_cap(shared: State<'_, Shared>, cap: u32) {
+    *shared.msg_cap.lock() = cap;
+    shared.emit_comm();
+}
+
+#[tauri::command]
+fn reset_message_count(shared: State<'_, Shared>) {
+    *shared.msg_count.lock() = 0;
+    shared.emit_comm();
+}
+
+#[tauri::command]
 fn list_memory(shared: State<'_, Shared>) -> Vec<bus::MemoryEntry> {
     shared.recall(None)
 }
@@ -251,6 +274,10 @@ pub fn run() {
             is_git_repo,
             create_worktree,
             remove_worktree,
+            get_comm_state,
+            set_auto_comm,
+            set_message_cap,
+            reset_message_count,
             list_memory,
             forget_memory,
             remember,

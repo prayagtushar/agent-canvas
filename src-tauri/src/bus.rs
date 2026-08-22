@@ -55,6 +55,13 @@ pub struct MemoryEntry {
 }
 
 pub struct BusShared {
+    /// Whether agents may message each other without asking the operator.
+    pub auto_comm: Mutex<bool>,
+    /// Agent-to-agent messages sent so far, and the ceiling. Two agents can
+    /// talk each other in circles forever, which costs real money, so the
+    /// Bus stops relaying once the count reaches the cap.
+    pub msg_count: Mutex<u32>,
+    pub msg_cap: Mutex<u32>,
     pub memory: Mutex<HashMap<String, MemoryEntry>>,
     pub nodes: Mutex<HashMap<String, NodeInfo>>,
     pub edges: Mutex<Vec<(String, String)>>,
@@ -65,6 +72,10 @@ pub struct BusShared {
     pub port: Mutex<u16>,
     pub token: Mutex<String>,
 }
+
+/// Chosen to be generous for real work but low enough that a runaway loop
+/// costs cents, not hundreds of dollars.
+pub const DEFAULT_MSG_CAP: u32 = 200;
 
 pub fn now_ms() -> u64 {
     SystemTime::now()
@@ -80,6 +91,9 @@ pub fn new_id(prefix: &str) -> String {
 impl BusShared {
     pub fn new() -> Arc<Self> {
         Arc::new(Self {
+            auto_comm: Mutex::new(true),
+            msg_count: Mutex::new(0),
+            msg_cap: Mutex::new(DEFAULT_MSG_CAP),
             memory: Mutex::new(HashMap::new()),
             nodes: Mutex::new(HashMap::new()),
             edges: Mutex::new(Vec::new()),
@@ -168,6 +182,22 @@ impl BusShared {
         if !self.connected(from, to) {
             return Err(format!("no connection between {} and {}", from, to));
         }
+        if !*self.auto_comm.lock() {
+            return Err(
+                "agent-to-agent messaging is switched off; ask the operator to turn it on"
+                    .to_string(),
+            );
+        }
+        {
+            let mut count = self.msg_count.lock();
+            let cap = *self.msg_cap.lock();
+            if *count >= cap {
+                return Err(format!(
+                    "message cap of {cap} reached; the operator has to raise it or reset the count"
+                ));
+            }
+            *count += 1;
+        }
         let msg = BusMessage {
             id: new_id("msg"),
             from: from.to_string(),
@@ -192,6 +222,7 @@ impl BusShared {
                 "text": msg.text,
             }),
         );
+        self.emit_comm();
         Ok(msg)
     }
 
@@ -375,6 +406,21 @@ impl BusShared {
             }
             None => Err(format!("nothing remembered under {}", key)),
         }
+    }
+
+    pub fn comm_state(&self) -> serde_json::Value {
+        serde_json::json!({
+            "autoComm": *self.auto_comm.lock(),
+            "sent": *self.msg_count.lock(),
+            "cap": *self.msg_cap.lock(),
+        })
+    }
+
+    pub fn emit_comm(&self) {
+        self.emit(
+            "bus-event",
+            serde_json::json!({ "kind": "comm", "comm": self.comm_state() }),
+        );
     }
 
     fn emit_memory(&self) {

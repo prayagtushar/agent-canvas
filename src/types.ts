@@ -44,6 +44,12 @@ export interface HarnessInfo {
   bus: boolean;
 }
 
+export interface CommState {
+  autoComm: boolean;
+  sent: number;
+  cap: number;
+}
+
 export interface MemoryEntry {
   key: string;
   value: string;
@@ -63,7 +69,8 @@ export type BusEvent =
   | { kind: "task"; action: "added" | "claimed" | "done"; task: Task; by?: string }
   | { kind: "approval"; approval: Approval }
   | { kind: "edges"; edges: [string, string][] }
-  | { kind: "memory"; memory: MemoryEntry[] };
+  | { kind: "memory"; memory: MemoryEntry[] }
+  | { kind: "comm"; comm: CommState };
 
 export type AgentData = {
   nodeId: string;

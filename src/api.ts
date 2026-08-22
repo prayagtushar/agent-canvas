@@ -1,5 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
-import type { BusInfo, HarnessInfo, MemoryEntry, NodeInfo } from "./types";
+import type { BusInfo, CommState, HarnessInfo, MemoryEntry, NodeInfo } from "./types";
 
 export type AddAgentArgs = {
   label: string;
@@ -44,6 +44,14 @@ export const api = {
 
   removeWorktree: (repo: string, path: string): Promise<void> =>
     invoke<void>("remove_worktree", { repo, path }),
+
+  getCommState: (): Promise<CommState> => invoke<CommState>("get_comm_state"),
+
+  setAutoComm: (on: boolean): Promise<void> => invoke<void>("set_auto_comm", { on }),
+
+  setMessageCap: (cap: number): Promise<void> => invoke<void>("set_message_cap", { cap }),
+
+  resetMessageCount: (): Promise<void> => invoke<void>("reset_message_count"),
 
   listMemory: (): Promise<MemoryEntry[]> => invoke<MemoryEntry[]>("list_memory"),
 

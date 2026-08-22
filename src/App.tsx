@@ -8,6 +8,7 @@ import TitleBar from "./components/TitleBar";
 import Rail from "./components/Rail";
 import Toasts from "./components/Toasts";
 import Shortcuts from "./components/Shortcuts";
+import CommChips from "./components/CommChips";
 import Approvals from "./Approvals";
 import { api } from "./api";
 import { useStore } from "./store";
@@ -58,6 +59,9 @@ export default function App() {
           case "memory":
             st.setMemory(payload.memory);
             break;
+          case "comm":
+            st.setComm(payload.comm);
+            break;
         }
       });
       if (disposed) {
@@ -74,6 +78,7 @@ export default function App() {
     void st.loadHarnesses();
     void st.restoreWorkspace();
     void st.refreshMemory();
+    void st.refreshComm();
     // First run: default the working folder to the user's home directory.
     if (!st.workspaceRoot) {
       void api
@@ -158,6 +163,7 @@ export default function App() {
       <CommandBar />
       <TitleBar />
       <Rail />
+      <CommChips />
       <Approvals />
       <Toasts />
       <Shortcuts />

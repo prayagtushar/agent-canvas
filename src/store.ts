@@ -11,6 +11,7 @@ import type {
   Approval,
   CanvasNode,
   HarnessInfo,
+  CommState,
   MemoryEntry,
   NodeInfo,
   Task,
@@ -44,6 +45,7 @@ interface StoreState {
   /** Give each new agent its own git worktree when the folder is a repo. */
   useWorktrees: boolean;
   memory: MemoryEntry[];
+  comm: CommState;
 
   onNodesChange: (changes: NodeChange<CanvasNode>[]) => void;
   onEdgesChange: (changes: EdgeChange[]) => void;
@@ -79,6 +81,8 @@ interface StoreState {
   setWorkspaceRoot: (p: string) => void;
   setUseWorktrees: (v: boolean) => void;
   setMemory: (m: MemoryEntry[]) => void;
+  setComm: (c: CommState) => void;
+  refreshComm: () => Promise<void>;
   addMemoryNode: () => void;
   refreshMemory: () => Promise<void>;
   loadHarnesses: () => Promise<void>;
@@ -117,6 +121,7 @@ export const useStore = create<StoreState>()((set, get) => ({
   workspaceRoot: localStorage.getItem("ac.workspaceRoot") ?? "",
   useWorktrees: localStorage.getItem("ac.useWorktrees") === "1",
   memory: [],
+  comm: { autoComm: true, sent: 0, cap: 200 },
 
   onNodesChange: (changes) =>
     set((s) => ({ nodes: applyNodeChanges(changes, s.nodes) })),
@@ -316,6 +321,16 @@ export const useStore = create<StoreState>()((set, get) => ({
   },
 
   setMemory: (memory) => set({ memory }),
+
+  setComm: (comm) => set({ comm }),
+
+  refreshComm: async () => {
+    try {
+      set({ comm: await api.getCommState() });
+    } catch {
+      /* the Bus may not be up yet */
+    }
+  },
 
   addMemoryNode: () => {
     if (get().nodes.some((n) => n.type === "memory")) {

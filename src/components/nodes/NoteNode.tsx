@@ -19,13 +19,13 @@ function NoteNodeInner({ id, data }: NodeProps<NoteFlowNode>) {
     <div className={`sticky-note ${hit ? "hit" : ""}`} style={{ ["--tilt" as string]: `${tilt}deg` }}>
       <div className="sticky-lights">
         <span
-          className="light light-r"
+          className="tl-dot tl-red"
           title="Remove this note"
           style={{ cursor: "pointer" }}
           onClick={() => removeNode(id)}
         />
-        <span className="light light-y" />
-        <span className="light light-g" />
+        <span className="tl-dot tl-yellow" />
+        <span className="tl-dot tl-green" />
         <span className="sticky-title">note</span>
       </div>
       <textarea

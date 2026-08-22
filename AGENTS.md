@@ -16,29 +16,35 @@ before changing rendering, the Bus, or the harness adapters.
 
 ## Rendering rules
 
-The window is transparent and macOS vibrancy blurs the desktop behind it. That
-makes WebKit composite differently from a normal browser, and three things
-break in ways a browser will never show you.
+**Do not use generic class names in `styles.css`.** xyflow puts its colour-mode
+class on the ReactFlow container, so the element carries
+`class="react-flow light"`. A bare `.light { border-radius: 50% }` rule written
+for sticky-note traffic lights therefore matched the whole 1440x900 canvas
+container, and with xyflow's inline `overflow: hidden` it clipped every node on
+the canvas to a giant ellipse. The traffic lights are now `.tl-dot`. Before
+adding a short class name, check it against the classes xyflow puts on its own
+elements: `light`, `dark`, and everything prefixed `react-flow__`.
 
-**Floating chrome does not go inside `<ReactFlow>`.** Toolbar and CommandBar
-were ReactFlow `<Panel>`s. In the real window the command bar rendered as a
-skewed slab and the toolbar was clipped in half. Anything composited inside the
-canvas subtree is at risk. Chrome renders in `App.tsx` next to TitleBar and
-Rail, wrapped in `ReactFlowProvider` so `useReactFlow()` still resolves.
+That bug cost three wrong diagnoses. `backdrop-filter`, `overflow: hidden` and
+the drop shadow all got blamed and none of them were it. If you hit something
+similar, dump `getComputedStyle` from the real window and walk
+`document.styleSheets` for rules that `element.matches()`, rather than reasoning
+about which property looks suspicious.
 
-**Canvas nodes are square and cast only a tight shadow.** A shadow's shape
-follows the element's `border-radius`, and inside ReactFlow's zoom transform
-WebKit multiplies that radius by the zoom factor. An 11px corner with a 44px
-blur painted as a ~800px dark arc across the canvas, growing as you zoomed in.
-Rounded corners and soft shadows belong to chrome only.
+**`backdrop-filter` is pointless here.** It samples within the page, and the
+page is transparent, so it cannot blur the desktop. All wallpaper blur comes
+from the native vibrancy layer. A plain translucent fill over it already reads
+as frosted glass. Use `opacity` to dim.
 
-**No `backdrop-filter` or `filter` in `styles.css`.** It cannot blur the
-desktop, since it only samples within the page, and in this window WebKit
-renders it as large elliptical clip artifacts. All wallpaper blur comes from
-the native vibrancy layer. Use `opacity` to dim.
+**Floating chrome lives in the shell, not inside `<ReactFlow>`.** Toolbar and
+CommandBar render in `App.tsx` next to TitleBar and Rail, wrapped in
+`ReactFlowProvider` so `useReactFlow()` still resolves. This keeps app chrome
+out of the pannable, zoomable canvas, which is where it belongs.
 
-A browser screenshot is not proof for any UI change here. Run `npm run tauri
-dev` and look at the real window.
+**Canvas nodes are square.** A deliberate look, not a workaround.
+
+A browser screenshot is weak evidence for UI work here. The app runs in a
+transparent WKWebView. Check `npm run tauri dev`.
 
 ## Transparency
 

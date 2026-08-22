@@ -147,9 +147,8 @@ file.
 Read [AGENTS.md](AGENTS.md) first. It has the layout, the API contract, and the
 rendering rules that are easy to break in a transparent window.
 
-Before a PR, run the four commands at the bottom of that file. One rule worth
-repeating here: a browser screenshot does not prove a UI change works, because
-WebKit composites differently inside this window. Check `npm run tauri dev`.
+Before a PR, run the four commands at the bottom of that file, and check UI
+changes in `npm run tauri dev` rather than a browser.
 
 ## License
 
