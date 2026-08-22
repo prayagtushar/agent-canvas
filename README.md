@@ -111,13 +111,20 @@ between two agents' green dots to connect them, then ask one to `list_peers`.
 
 ## Security
 
-Read [SECURITY.md](SECURITY.md) before pointing agents at anything you care
-about. The short version: agents run with your permissions, and Claude Code
-launches with `--permission-mode acceptEdits`, so it can write files in its
-working directory without asking.
+Agents run as you, with your files, your environment, and your credentials.
+Claude Code launches with `--permission-mode acceptEdits`, so it writes files in
+its working directory without asking. Pick that folder deliberately, and turn on
+the per-agent worktree option when several agents share a repository.
+
+Treat agent output as untrusted input. Anything an agent reads, from a file, the
+web, or a peer, can steer what it does next.
 
 The Bus binds to `127.0.0.1` on a random port and checks a bearer token on every
-route. The token is new on each launch and never leaves the machine.
+route, including `/health`. The token is new on each launch, is written only into
+per-agent config files under your cache directory, and never leaves the machine.
+
+Found a vulnerability? Open a [private advisory](https://github.com/prayagtushar/agent-canvas/security/advisories/new)
+rather than a public issue.
 
 ## Tests
 
@@ -137,12 +144,12 @@ file.
 
 ## Contributing
 
-[CONTRIBUTING.md](CONTRIBUTING.md) has the layout, the commands to run before a
-PR, and two rendering rules that are easy to trip over. [AGENTS.md](AGENTS.md)
-is the working memory for the project. Read it before changing anything.
+Read [AGENTS.md](AGENTS.md) first. It has the layout, the API contract, and the
+rendering rules that are easy to break in a transparent window.
 
-Report security problems through [SECURITY.md](SECURITY.md), not the issue
-tracker.
+Before a PR, run the four commands at the bottom of that file. One rule worth
+repeating here: a browser screenshot does not prove a UI change works, because
+WebKit composites differently inside this window. Check `npm run tauri dev`.
 
 ## License
 
