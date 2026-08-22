@@ -17,7 +17,7 @@
 :root {
   /* wallpaper scrim — how much of the desktop reads through.
      Driven at runtime from the Tint control in the toolbar. */
-  --tint: 0.46;
+  --tint: 0.36;
 
   /* glass — floating chrome over the wallpaper */
   --glass: rgba(18, 22, 30, 0.74);
@@ -982,8 +982,13 @@ body {
 
 /* ---------- bottom toolbar ---------- */
 
+/* Chrome lives in the shell, not inside ReactFlow: layers composited inside
+   the canvas subtree get mis-transformed in a transparent WKWebView. */
 .toolbar-panel {
-  margin: 0 0 74px 14px !important;
+  position: absolute;
+  left: 14px;
+  bottom: 74px;
+  z-index: 35;
 }
 
 .toolbar {
@@ -1095,7 +1100,11 @@ body {
 /* ---------- command bar ---------- */
 
 .commandbar-panel {
-  margin: 0 0 22px 0 !important;
+  position: absolute;
+  left: 50%;
+  bottom: 22px;
+  transform: translateX(-50%);
+  z-index: 36;
 }
 
 .commandbar {

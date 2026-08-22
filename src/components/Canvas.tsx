@@ -13,8 +13,6 @@ import AgentNode from "./nodes/AgentNode";
 import TaskBoardNode from "./nodes/TaskBoardNode";
 import NoteNode from "./nodes/NoteNode";
 import MemoryNode from "./nodes/MemoryNode";
-import Toolbar from "./Toolbar";
-import CommandBar from "./CommandBar";
 import { useStore } from "../store";
 import { api } from "../api";
 
@@ -130,8 +128,6 @@ export default function Canvas() {
             </div>
           </div>
         )}
-        <Toolbar />
-        <CommandBar />
         <MiniMap
           pannable
           zoomable

@@ -42,10 +42,15 @@ claim `Bus: ✅` in the README for a harness you have actually run.
 
 ## House rules
 
-- **Never add `backdrop-filter` or `filter` to `src/styles.css`.** In a
-  transparent window WebKit renders them as large elliptical clip artifacts
-  across the canvas. The blur already comes from the native vibrancy layer.
-  Use `opacity` to dim.
+- **App chrome does not go inside `<ReactFlow>`.** Toolbar, command bar and
+  any other floating UI render in the shell (`App.tsx`) next to the titlebar
+  and rail. Layers composited inside the canvas subtree get mis-transformed in
+  a transparent WKWebView — the command bar renders as a skewed slab and the
+  toolbar gets clipped. Use `useReactFlow()` from inside `ReactFlowProvider`
+  when chrome needs canvas state.
+- **Never add `backdrop-filter` or `filter` to `src/styles.css`.** Same window,
+  same class of bug: WebKit turns them into large elliptical clip artifacts.
+  The blur already comes from the native vibrancy layer. Use `opacity` to dim.
 - The Bus owns the peer graph. The canvas asks it to connect and then renders
   whatever the Bus emits back — never the reverse.
 - Keep the locked API contract in `AGENTS.md` in sync if you rename a command,

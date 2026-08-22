@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Panel, useReactFlow } from "@xyflow/react";
+import { useReactFlow } from "@xyflow/react";
 import { open } from "@tauri-apps/plugin-dialog";
 import { api } from "../api";
 import { useStore } from "../store";
@@ -100,7 +100,7 @@ export default function Toolbar() {
   };
 
   return (
-    <Panel position="bottom-left" className="toolbar-panel">
+    <div className="toolbar-panel">
       <div className="toolbar" ref={rootRef}>
         <button
           className={`tool-seg ${menu === "agent" ? "active" : ""}`}
@@ -282,6 +282,6 @@ export default function Toolbar() {
           </div>
         )}
       </div>
-    </Panel>
+    </div>
   );
 }

@@ -110,7 +110,7 @@ export const useStore = create<StoreState>()((set, get) => ({
   harnesses: [],
   zoom: 100,
   search: "",
-  tint: Number(localStorage.getItem("ac.tint") ?? 0.46),
+  tint: Number(localStorage.getItem("ac.tint") ?? 0.36),
   focus: false,
   shortcutsOpen: false,
   theme: (localStorage.getItem("ac.theme") as Theme) ?? "midnight",

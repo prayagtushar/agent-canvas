@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from "react";
-import { Panel } from "@xyflow/react";
 import { api } from "../api";
 import { useStore } from "../store";
 import type { AgentFlowNode } from "../types";
@@ -161,7 +160,7 @@ export default function CommandBar() {
   return (
     <>
       {flash && <div className="cmd-flash">{flash}</div>}
-      <Panel position="bottom-center" className="commandbar-panel">
+      <div className="commandbar-panel">
         <div
           className="commandbar"
           onKeyDown={(e) => {
@@ -198,7 +197,7 @@ export default function CommandBar() {
             </svg>
           </button>
         </div>
-      </Panel>
+      </div>
     </>
   );
 }

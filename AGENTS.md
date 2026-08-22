@@ -41,6 +41,13 @@ wallpaper behind the whole surface. Three things must all hold or it breaks:
 `--tint` is user-controlled by the slider in the bottom toolbar, persisted to
 `localStorage` under `ac.tint` and saved into the workspace file.
 
+**Floating chrome must live in the shell, never inside `<ReactFlow>`.**
+Toolbar and CommandBar were ReactFlow `<Panel>`s and rendered as a skewed white
+slab and a clipped bar in the real window (invisible in a normal browser). Any
+layer composited inside the canvas subtree is at risk in a transparent
+WKWebView. They now render in `App.tsx` beside TitleBar/Rail, wrapped in
+`ReactFlowProvider` so `useReactFlow()` still works.
+
 **Never use `backdrop-filter` (or `filter`) in `styles.css`.** Two reasons:
 it does not blur the desktop at all — it only samples within the page, and
 all wallpaper blur comes from the native vibrancy layer — and in a

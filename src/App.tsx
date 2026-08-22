@@ -1,6 +1,9 @@
 import { useEffect } from "react";
 import { listen } from "@tauri-apps/api/event";
+import { ReactFlowProvider } from "@xyflow/react";
 import Canvas from "./components/Canvas";
+import Toolbar from "./components/Toolbar";
+import CommandBar from "./components/CommandBar";
 import TitleBar from "./components/TitleBar";
 import Rail from "./components/Rail";
 import Toasts from "./components/Toasts";
@@ -144,17 +147,21 @@ export default function App() {
   }, []);
 
   return (
+    <ReactFlowProvider>
     <div
       className={`shell ${focus ? "focus" : ""}`}
       data-theme={theme}
       style={{ ["--tint" as string]: String(tint) }}
     >
       <Canvas />
+      <Toolbar />
+      <CommandBar />
       <TitleBar />
       <Rail />
       <Approvals />
       <Toasts />
       <Shortcuts />
     </div>
+    </ReactFlowProvider>
   );
 }
