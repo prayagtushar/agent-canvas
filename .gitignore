@@ -1,0 +1,16 @@
+# dependencies
+node_modules/
+
+# build output
+dist/
+src-tauri/target/
+src-tauri/gen/schemas/
+
+# local workspace state
+.agent-canvas/
+
+# editor / OS
+.DS_Store
+*.log
+.vscode/
+.idea/

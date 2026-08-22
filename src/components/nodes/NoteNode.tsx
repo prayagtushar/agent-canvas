@@ -1,0 +1,43 @@
+import { memo } from "react";
+import { type NodeProps } from "@xyflow/react";
+import { updateNodeData, useStore } from "../../store";
+import type { NoteFlowNode } from "../../types";
+
+function NoteNodeInner({ id, data }: NodeProps<NoteFlowNode>) {
+  const search = useStore((s) => s.search);
+  const removeNode = useStore((s) => s.removeNode);
+
+  const hit =
+    search !== "" &&
+    (data.note.toLowerCase().includes(search.toLowerCase()) ||
+      "note".includes(search.toLowerCase()));
+
+  // Deterministic per-note tilt so the board looks handled, not generated.
+  const tilt = ((id.split("").reduce((a, c) => a + c.charCodeAt(0), 0) % 5) - 2) * 0.9;
+
+  return (
+    <div className={`sticky-note ${hit ? "hit" : ""}`} style={{ ["--tilt" as string]: `${tilt}deg` }}>
+      <div className="sticky-lights">
+        <span
+          className="light light-r"
+          title="Remove this note"
+          style={{ cursor: "pointer" }}
+          onClick={() => removeNode(id)}
+        />
+        <span className="light light-y" />
+        <span className="light light-g" />
+        <span className="sticky-title">note</span>
+      </div>
+      <textarea
+        className="note-textarea nodrag nowheel"
+        value={data.note}
+        placeholder="Write a note"
+        onKeyDown={(e) => e.stopPropagation()}
+        onChange={(e) => updateNodeData(id, { note: e.target.value })}
+      />
+    </div>
+  );
+}
+
+const NoteNode = memo(NoteNodeInner);
+export default NoteNode;
