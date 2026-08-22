@@ -44,8 +44,8 @@ pub struct Approval {
     pub answer: Option<String>,
 }
 
-/// One fact the whole canvas shares. October's premise: agents draw on the
-/// same memory instead of each keeping its own.
+/// One fact the whole canvas shares, so agents draw on the same memory
+/// instead of each keeping its own.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MemoryEntry {
     pub key: String,

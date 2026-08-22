@@ -18,9 +18,9 @@ the following before using it:
   it may write files in its working directory without prompting. Choose the
   working folder deliberately, and prefer the per-agent git worktree option
   when several agents share a repository.
-- **Prompts and agent output are not sandboxed.** Content an agent reads —
-  from files, the web, or a peer — can influence what it does next. Treat
-  agent output as untrusted input, especially before acting on it.
+- **Prompts and agent output are not sandboxed.** Anything an agent reads, from
+  files, the web, or a peer, can influence what it does next. Treat agent
+  output as untrusted input, especially before acting on it.
 
 ## The Bus
 

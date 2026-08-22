@@ -1,42 +1,32 @@
+<p align="center">
+  <img src="assets/logo.png" width="88" alt="Agent Canvas">
+</p>
+
 # Agent Canvas
 
 [![CI](https://github.com/prayagtushar/agent-canvas/actions/workflows/ci.yml/badge.svg)](https://github.com/prayagtushar/agent-canvas/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Built with Tauri](https://img.shields.io/badge/built%20with-Tauri%202-24C8DB.svg)](https://tauri.app)
 
-A desktop workspace where several AI coding agents run as **real processes** on a
-spatial canvas. They discover each other only through connections you draw,
-share a task board and a common memory, message one another, and escalate
-decisions back to you.
+Run several AI coding CLIs at once on one canvas, and let them hand work to each
+other.
 
-The window is transparent: your own desktop wallpaper shows through, blurred,
-behind the work.
-
-> Agent Canvas is an independent, from-scratch project inspired by
-> [october.dev](https://www.october.dev/). It is not affiliated with it.
-
-## Why
-
-Running four agents means four terminal tabs, four sets of context, and no way
-for them to hand work to each other. Agent Canvas keeps every agent a real
-process with its own harness, account, working directory and credentials — and
-puts a coordination layer underneath so they can actually collaborate, with you
-holding scope, review, and the final decision.
+Each agent is a real child process with its own harness, account, and working
+directory. You draw the connections that decide who can see whom. The window is
+transparent, so your desktop wallpaper shows through behind the work.
 
 ## What it does
 
-- **Canvas** — every agent is a live terminal window you can move, resize and
-  connect. Sticky notes and a project card sit alongside them.
-- **Scoped discovery** — an agent can only see peers you have connected it to.
-  No edge, no visibility.
-- **Shared task board** — agents create, claim and complete tasks. A claim is
-  exclusive, so two agents never work the same item.
-- **Shared memory** — one store the whole canvas reads and writes, instead of
-  each agent keeping its own.
-- **Human escalation** — an agent can stop and ask you a question; it blocks
-  until you answer.
-- **Worktree isolation** — optionally give each agent its own git worktree so
-  concurrent edits cannot collide.
+Every agent is a terminal window you can move, resize, and wire to another one.
+Underneath sits a local coordination server, the Bus, that agents reach as a
+real MCP server.
+
+- An agent sees only the peers you connected it to. No edge, no visibility.
+- Agents create, claim, and finish tasks on a shared board. A claim is
+  exclusive, so two agents cannot pick up the same task.
+- Agents read and write one shared memory instead of each keeping its own.
+- An agent can stop and ask you a question. It blocks until you answer.
+- Each agent can get its own git worktree, so concurrent edits never collide.
 
 ## How it works
 
@@ -51,15 +41,15 @@ holding scope, review, and the final decision.
                                    ▲
                     same binary invoked as: --bus-mcp PORT TOKEN NODE_ID
                                    │
-     claude -p ... --mcp-config <generated>   ← injected by the spawner
+     claude -p ... --mcp-config <generated>   ← written by the spawner
 ```
 
-The trick: every spawned agent gets an MCP config pointing at **this app's own
-executable** running in `--bus-mcp` mode. That subprocess speaks JSON-RPC over
-stdio with the agent and proxies tool calls to the in-app Bus over HTTP. Agents
-therefore call real MCP tools — no prompt wrapping, no scraping.
+When the app spawns an agent, it writes an MCP config pointing at its own
+executable in `--bus-mcp` mode. That subprocess talks JSON-RPC over stdio with
+the agent and forwards tool calls to the Bus over HTTP. Agents call real MCP
+tools. Nothing wraps the prompt and nothing scrapes output.
 
-### Tools agents get
+### Tools an agent gets
 
 | Group | Tools |
 | --- | --- |
@@ -70,43 +60,43 @@ therefore call real MCP tools — no prompt wrapping, no scraping.
 | Dependencies | `get_node_status`, `wait_for_nodes` |
 | Escalation | `ask_user` |
 
-## Supported harnesses
+## Harnesses
 
-Bus column means the CLI can be wired to the coordination tools above. The rest
-still run on the canvas as terminals.
+"Bus" means the CLI can be wired to the tools above. The others still run on the
+canvas as terminals. Anything missing from your `PATH` shows greyed out in the
+launcher.
 
-| CLI | Bus | Runtime tested |
+| CLI | Bus | Run against it |
 | --- | --- | --- |
-| `claude` (Claude Code) | ✅ | ✅ |
-| `codex` (Codex) | ✅ | — |
-| `gemini` (Gemini CLI) | ✅ | — |
-| `opencode` | ✅ | ✅ |
-| `qwen` (Qwen Code) | ✅ | — |
-| `crush` | ✅ | — |
-| `goose`, `aider`, `amp`, `cursor-agent`, `copilot`, `droid` | — | — |
+| `claude` (Claude Code) | yes | yes |
+| `opencode` | yes | yes |
+| `codex` (Codex) | yes | not yet |
+| `gemini` (Gemini CLI) | yes | not yet |
+| `qwen` (Qwen Code) | yes | not yet |
+| `crush` | yes | not yet |
+| `goose`, `aider`, `amp`, `cursor-agent`, `copilot`, `droid` | no | not yet |
 
-Anything not installed shows greyed out in the launcher. Adding a harness means
-one row in `HARNESSES` and one match arm in `start_process`, both in
-[`src-tauri/src/spawn.rs`](src-tauri/src/spawn.rs).
+Adding one takes a row in `HARNESSES` and a match arm in `start_process`, both
+in [`src-tauri/src/spawn.rs`](src-tauri/src/spawn.rs).
 
 ## Running it
 
-Requires Node 18+, a Rust toolchain, and at least one agent CLI on your `PATH`.
+You need Node 18 or newer, a Rust toolchain, and at least one agent CLI on your
+`PATH`.
 
 ```sh
 npm install
 npm run tauri dev
 ```
 
-To build a bundle:
+For a bundle:
 
 ```sh
 npm run tauri build
 ```
 
-Then pick a working folder from the toolbar, launch an agent from the left rail,
-drag between two agents' green dots to connect them, and ask one to
-`list_peers`.
+Pick a working folder from the toolbar, launch an agent from the left rail, drag
+between two agents' green dots to connect them, then ask one to `list_peers`.
 
 ### Keyboard
 
@@ -116,46 +106,48 @@ drag between two agents' green dots to connect them, and ask one to
 | `⌘S` | Save the workspace |
 | `⌘F` | Find an agent or note |
 | `⌘.` | Interrupt everything running |
-| `⌘\` | Toggle Focus mode |
+| `⌘\` | Toggle focus mode |
 | `?` | Show all shortcuts |
 
 ## Security
 
-Read [SECURITY.md](SECURITY.md) before running agents on anything you care
-about. In short: the Bus listens on `127.0.0.1` on a random port and requires a bearer token on
-**every** route, with a fresh token per launch that never leaves the machine.
-Agents run with the permissions of whoever launched the app — this is a tool
-for running code you intend to run, on hardware you control.
+Read [SECURITY.md](SECURITY.md) before pointing agents at anything you care
+about. The short version: agents run with your permissions, and Claude Code
+launches with `--permission-mode acceptEdits`, so it can write files in its
+working directory without asking.
+
+The Bus binds to `127.0.0.1` on a random port and checks a bearer token on every
+route. The token is new on each launch and never leaves the machine.
 
 ## Tests
 
 ```sh
-cd src-tauri && cargo test
+cargo test --manifest-path src-tauri/Cargo.toml
 ```
 
 `tests/bus_flow.rs` covers peer scoping, edge-gated messaging, the task
 lifecycle, human escalation, and disconnection.
 
-## Project status
+## Status
 
-Pre-1.0 and honest about it. The coordination core is covered by tests and the
-Claude Code and opencode adapters are exercised regularly; the other harness
-adapters are written from each CLI's documented flags but not yet run. Issues
-and PRs are welcome, particularly harness reports — see the table above.
+Pre-1.0. The coordination core has test coverage, and I use the Claude Code and
+opencode adapters regularly. The rest come from each CLI's documented flags and
+nobody has run them yet, so reports on those are the most useful thing you can
+file.
 
 ## Contributing
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for the layout, the verification
-commands, and the house rules. [AGENTS.md](AGENTS.md) is the working memory for
-the project — read it before making changes. Please also read the
-[Code of Conduct](CODE_OF_CONDUCT.md).
+[CONTRIBUTING.md](CONTRIBUTING.md) has the layout, the commands to run before a
+PR, and two rendering rules that are easy to trip over. [AGENTS.md](AGENTS.md)
+is the working memory for the project. Read it before changing anything.
 
-Security issues go through [SECURITY.md](SECURITY.md), not the public tracker.
+Report security problems through [SECURITY.md](SECURITY.md), not the issue
+tracker.
 
 ## License
 
-MIT — see [LICENSE](LICENSE).
+MIT. See [LICENSE](LICENSE).
 
-Agent Canvas bundles [Geist Sans](https://github.com/vercel/geist-font) and
-[JetBrains Mono](https://github.com/JetBrains/JetBrainsMono), both under the
-SIL Open Font License.
+Bundles [Geist Sans](https://github.com/vercel/geist-font) and
+[JetBrains Mono](https://github.com/JetBrains/JetBrainsMono), both under the SIL
+Open Font License.

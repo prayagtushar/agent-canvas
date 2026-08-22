@@ -2,8 +2,7 @@
 
 A desktop workspace where multiple AI coding agents run as real processes on a
 spatial canvas, discover each other through explicit connections, share a task
-board, message one another, and escalate decisions to you. Inspired by
-october.dev, rebuilt from scratch as an MVP.
+board, message one another, and escalate decisions to you.
 
 ## Product surfaces
 
@@ -77,7 +76,7 @@ but disabled.
 - [x] M6 Persistence: workspace JSON save/load
 - [x] M7 Verify: cargo check clean, vite build clean, Bus flow covered by
       `cargo test --test bus_flow` (peer scoping, messaging, tasks, ask_user)
-- [x] M8 Translucent window over the desktop wallpaper + october.dev replica UI
+- [x] M8 Translucent window over the desktop wallpaper, full operator UI
 
 ## Non-goals for MVP
 

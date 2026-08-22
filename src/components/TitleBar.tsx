@@ -69,7 +69,19 @@ export default function TitleBar() {
 
   return (
     <div className="titlebar">
-      <span className="tb-logo">A</span>
+      <span className="tb-logo" aria-hidden="true">
+        <svg width="17" height="17" viewBox="0 0 1024 1024">
+          <g stroke="#4d97ff" strokeWidth="88" strokeLinecap="round" fill="none">
+            <path d="M340 368H684" />
+            <path d="M340 368V656" />
+          </g>
+          <rect x="232" y="260" width="216" height="216" rx="34" fill="#2fd45e" />
+          <rect x="610" y="302" width="148" height="148" rx="26" fill="#0e1420"
+                stroke="#a8bede" strokeWidth="68" />
+          <rect x="266" y="582" width="148" height="148" rx="26" fill="#0e1420"
+                stroke="#a8bede" strokeWidth="68" />
+        </svg>
+      </span>
       <span className="tb-name">Agent Canvas</span>
       <span className="tb-workspace">untitled workspace</span>
       <div className="tb-spacer" data-tauri-drag-region />

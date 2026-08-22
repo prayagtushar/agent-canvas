@@ -10,7 +10,7 @@ All notable changes to this project are documented here. The format follows
 - Spatial canvas running AI coding CLIs as real child processes.
 - The Bus: peer discovery scoped to drawn connections, edge-gated messaging,
   a shared task board with exclusive claims, and human escalation via
-  `ask_user` — exposed to agents as real MCP tools.
+  `ask_user`, all exposed to agents as real MCP tools.
 - Shared canvas memory (`remember` / `recall` / `forget`) with a Memory node.
 - Optional git worktree per agent, under `.agent-canvas/worktrees/`.
 - 12 harnesses behind a single table, led by Claude Code, Codex, Gemini CLI

@@ -275,17 +275,11 @@ body {
 }
 
 .tb-logo {
-  width: 17px;
-  height: 17px;
-  border-radius: 5px;
-  background: linear-gradient(140deg, #ff9d5c, #e0784a 60%, #c2410c);
   display: grid;
   place-items: center;
-  font-size: 10px;
-  font-weight: 700;
-  color: #fff5ec;
+  width: 17px;
+  height: 17px;
   flex: none;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
 }
 
 .tb-name {

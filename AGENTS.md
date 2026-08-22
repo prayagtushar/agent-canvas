@@ -8,8 +8,7 @@ Read this first. It is the single source of truth for continuing this project.
 (Claude Code, Gemini CLI, opencode, Codex) run as real headless processes on a
 spatial canvas, discover peers through explicit connections, share a task
 board, message each other, and escalate decisions to the human operator.
-Modeled on october.dev but built from scratch. Full architecture lives in
-`PLAN.md` (read it too).
+Full architecture lives in `PLAN.md`. Read it too.
 
 ## Current status (as of 2026-08-22, post translucency + replica pass)
 
@@ -57,7 +56,7 @@ the command bar. This shipped broken once and was only caught from a
 screenshot of the real app; a plain translucent fill over the vibrancy layer
 already reads as frosted glass. Use `opacity` to dim.
 
-### UI shape (mirrors october.dev)
+### UI shape
 Full-bleed canvas; chrome floats as glass slabs, content (terminals) is solid.
 Titlebar (logo, workspace, agent count, Save, Bus, ···, Focus, zoom), left icon
 rail, terminal-window agent nodes with 8 green connector dots and a two-line
@@ -91,8 +90,9 @@ NOT done:
 Gotchas discovered during build:
 - axum 0.8: routes use `/{param}`; `Option<Query<T>>` does NOT satisfy Handler —
   use `Query<HashMap<String,String>>` (empty query deserializes fine).
-- `generate_context!` panics without `src-tauri/icons/icon.png`; fixed by
-  running `npm run tauri icon icon-src.png` (icon-src.png kept in repo root).
+- `generate_context!` panics without `src-tauri/icons/icon.png`. Regenerate the
+  whole set with `npm run tauri icon assets/logo.png`; `assets/logo.png` is the
+  1024px master and `assets/logo.svg` is the source drawing.
 - server state is `(Arc<BusShared>, token)` tuple; mcp.rs proxies tools to the
   Bus with hand-rolled HTTP over TcpStream (no reqwest).
 - spawn.rs registries: CHILDREN/Arc<Mutex<Child>>, SESSIONS (claude --resume),
