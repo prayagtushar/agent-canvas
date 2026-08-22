@@ -118,6 +118,18 @@ export default function Canvas() {
           size={1}
           color="rgba(255,255,255,0.12)"
         />
+        {nodes.length === 0 && (
+          <div className="empty">
+            <div className="empty-inner">
+              <div className="empty-title">Nothing on the canvas yet</div>
+              <div className="empty-sub">
+                Launch an agent from the rail, or type what you want in the bar
+                below — try “add a Claude Code agent and a Codex agent, then
+                connect them”.
+              </div>
+            </div>
+          </div>
+        )}
         <Toolbar />
         <CommandBar />
         <MiniMap
@@ -132,18 +144,6 @@ export default function Canvas() {
           style={{ width: 182, height: 124, border: "1px solid rgba(255,255,255,0.1)" }}
         />
       </ReactFlow>
-
-      {nodes.length === 0 && (
-        <div className="empty">
-          <div className="empty-inner">
-            <div className="empty-title">Nothing on the canvas yet</div>
-            <div className="empty-sub">
-              Launch an agent from the rail, or type what you want in the bar below —
-              try “add a Claude Code agent and a Codex agent, then connect them”.
-            </div>
-          </div>
-        </div>
-      )}
 
       {ctx && (
         <div

@@ -22,6 +22,8 @@
   /* glass — floating chrome over the wallpaper */
   --glass: rgba(18, 22, 30, 0.74);
   --glass-strong: rgba(14, 17, 24, 0.93);
+  /* Popovers are opaque: nothing behind a menu should compete with it. */
+  --popover: #14171e;
   --glass-line: rgba(255, 255, 255, 0.10);
   --glass-hi: rgba(255, 255, 255, 0.07);
 
@@ -408,7 +410,7 @@ body {
   padding: 5px;
   border: 1px solid var(--glass-line);
   border-radius: 11px;
-  background: var(--glass-strong);
+  background: var(--popover);
   box-shadow: 0 16px 40px rgba(0, 0, 0, 0.55);
   z-index: 60;
 }
@@ -1247,7 +1249,7 @@ body {
   padding: 5px;
   border: 1px solid var(--glass-line);
   border-radius: 11px;
-  background: var(--glass-strong);
+  background: var(--popover);
   box-shadow: 0 16px 40px rgba(0, 0, 0, 0.55);
   z-index: 80;
 }
@@ -1260,7 +1262,7 @@ body {
   display: grid;
   place-items: center;
   pointer-events: none;
-  z-index: 1;
+  z-index: 0;
 }
 
 .empty-inner {
@@ -1536,7 +1538,7 @@ body {
   width: 372px;
   border: 1px solid var(--glass-line);
   border-radius: 14px;
-  background: var(--glass-strong);
+  background: var(--popover);
   box-shadow: 0 24px 60px rgba(0, 0, 0, 0.6);
   overflow: hidden;
 }
