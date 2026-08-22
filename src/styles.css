@@ -28,9 +28,9 @@
   --glass-hi: rgba(255, 255, 255, 0.07);
 
   /* solid — terminal content */
-  --win-bg: rgba(13, 16, 21, 0.94);
-  --win-head: rgba(23, 27, 35, 0.96);
-  --term-bg: rgba(9, 11, 15, 0.95);
+  --win-bg: #0d1015;
+  --win-head: #171b23;
+  --term-bg: #090b0f;
 
   --line: rgba(255, 255, 255, 0.09);
   --txt: #eceef2;
@@ -490,7 +490,6 @@ body {
   border-radius: var(--r-win);
   background: var(--win-bg);
   box-shadow: var(--shadow-win);
-  overflow: hidden;
   transition: border-color 0.14s ease, box-shadow 0.14s ease;
 }
 
@@ -507,6 +506,7 @@ body {
   padding: 0 9px;
   background: var(--win-head);
   border-bottom: 1px solid var(--line);
+  border-radius: calc(var(--r-win) - 1px) calc(var(--r-win) - 1px) 0 0;
   flex: none;
   cursor: grab;
 }
@@ -658,6 +658,7 @@ body {
   flex: none;
   border-top: 1px solid var(--line);
   background: var(--win-head);
+  border-radius: 0 0 calc(var(--r-win) - 1px) calc(var(--r-win) - 1px);
 }
 
 .prompt-row {
@@ -729,7 +730,6 @@ body {
   background: var(--sticky);
   box-shadow: 0 14px 30px rgba(0, 0, 0, 0.42);
   transform: rotate(var(--tilt, 0deg));
-  overflow: hidden;
 }
 
 .sticky-lights {
@@ -738,6 +738,7 @@ body {
   gap: 5px;
   padding: 7px 9px;
   background: rgba(0, 0, 0, 0.055);
+  border-radius: 8px 8px 0 0;
   cursor: grab;
 }
 
@@ -792,7 +793,6 @@ body {
   border-radius: var(--r-win);
   background: var(--win-bg);
   box-shadow: var(--shadow-win);
-  overflow: hidden;
 }
 
 .pc-head {
@@ -802,6 +802,7 @@ body {
   padding: 8px 11px;
   background: var(--win-head);
   border-bottom: 1px solid var(--line);
+  border-radius: calc(var(--r-win) - 1px) calc(var(--r-win) - 1px) 0 0;
   font-size: 12.5px;
   font-weight: 600;
   cursor: grab;
@@ -1452,6 +1453,7 @@ body {
   padding: 8px;
   border-top: 1px solid var(--line);
   background: var(--win-head);
+  border-radius: 0 0 calc(var(--r-win) - 1px) calc(var(--r-win) - 1px);
 }
 
 .mem-input {
