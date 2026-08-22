@@ -6,6 +6,13 @@
    whole surface. Everything below layers on top of that.
    Rule of the design: chrome is liquid, content is solid.
 
+   Anything that lives INSIDE the canvas (agent windows, notes, cards) is
+   square and casts only a tight shadow. Inside ReactFlow's zoom transform
+   WebKit scales a shadow's corner radius by the zoom factor, so a rounded
+   node with a wide-blur shadow paints a huge dark arc across the canvas.
+   Rounded corners and soft shadows belong to chrome only, which renders
+   outside the transformed subtree.
+
    DO NOT add `backdrop-filter` anywhere in this file. In a transparent
    Tauri window WKWebView renders it as large elliptical clip artifacts
    that cut across the canvas and slice through nodes. It also buys
@@ -57,9 +64,9 @@
   --ui: "Geist Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica,
     Arial, sans-serif;
 
-  --r-win: 11px;
+  --r-win: 0px;
   --r-pill: 11px;
-  --shadow-win: 0 18px 44px rgba(0, 0, 0, 0.5), 0 2px 8px rgba(0, 0, 0, 0.36);
+  --shadow-win: 0 2px 6px rgba(0, 0, 0, 0.45);
   --shadow-glass: 0 10px 30px rgba(0, 0, 0, 0.38);
 }
 
@@ -506,7 +513,6 @@ body {
   padding: 0 9px;
   background: var(--win-head);
   border-bottom: 1px solid var(--line);
-  border-radius: calc(var(--r-win) - 1px) calc(var(--r-win) - 1px) 0 0;
   flex: none;
   cursor: grab;
 }
@@ -658,7 +664,6 @@ body {
   flex: none;
   border-top: 1px solid var(--line);
   background: var(--win-head);
-  border-radius: 0 0 calc(var(--r-win) - 1px) calc(var(--r-win) - 1px);
 }
 
 .prompt-row {
@@ -726,9 +731,8 @@ body {
   min-height: 168px;
   display: flex;
   flex-direction: column;
-  border-radius: 8px;
   background: var(--sticky);
-  box-shadow: 0 14px 30px rgba(0, 0, 0, 0.42);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
   transform: rotate(var(--tilt, 0deg));
 }
 
@@ -738,7 +742,6 @@ body {
   gap: 5px;
   padding: 7px 9px;
   background: rgba(0, 0, 0, 0.055);
-  border-radius: 8px 8px 0 0;
   cursor: grab;
 }
 
@@ -802,7 +805,6 @@ body {
   padding: 8px 11px;
   background: var(--win-head);
   border-bottom: 1px solid var(--line);
-  border-radius: calc(var(--r-win) - 1px) calc(var(--r-win) - 1px) 0 0;
   font-size: 12.5px;
   font-weight: 600;
   cursor: grab;
@@ -1453,7 +1455,6 @@ body {
   padding: 8px;
   border-top: 1px solid var(--line);
   background: var(--win-head);
-  border-radius: 0 0 calc(var(--r-win) - 1px) calc(var(--r-win) - 1px);
 }
 
 .mem-input {
