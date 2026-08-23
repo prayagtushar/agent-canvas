@@ -43,6 +43,23 @@ out of the pannable, zoomable canvas, which is where it belongs.
 
 **Canvas nodes are square.** A deliberate look, not a workaround.
 
+**Wires are floating edges.** `WireEdge` ignores the handle coordinates
+xyflow hands it and computes where the centre-to-centre line crosses each
+node's border. Anchoring to a fixed handle made two agents side by side get
+joined by a loop arcing off the top of the screen, because nothing picks a
+handle that faces the peer. The connector dots still exist for dragging new
+connections; they just do not decide how a wire is drawn.
+
+**SMIL `begin` is measured from the start of the SVG document timeline, not
+from when the element mounts.** A `<animateMotion begin="0s">` added to a live
+canvas is therefore already past its end time and snaps straight to its frozen
+end state without ever moving. `WireEdge` keeps one bead per wire and starts it
+with `beginElement()` from an effect. Remounting the element with a changed
+React key does not help, and neither does a `key` on the animation itself.
+
+**`prefers-reduced-motion` in `styles.css` only reaches CSS animations.** SMIL
+has to opt out in JavaScript, which `WireEdge` does via `matchMedia`.
+
 A browser screenshot is weak evidence for UI work here. The app runs in a
 transparent WKWebView. Check `npm run tauri dev`.
 
@@ -88,6 +105,16 @@ An agent only sees peers joined to it by an edge.
 Claude Code speaks stream-json, so `tool_use` items become `> Read(path)` lines
 and the `result` message carries `usage` and `total_cost_usd`, which the Bus
 accumulates per node. Everything else is plain text.
+
+Transcript lines are keyed by their absolute position in the stream, which is
+why the store carries a `trimmed` count per node. Keying by array index looked
+fine until the scrollback buffer filled: every trim renumbered the whole
+buffer, React remounted all of it, and the arrival animation strobed the entire
+transcript on every chunk.
+
+Output events are held in a `Map` and written once per animation frame. Agent
+CLIs emit in small bursts and several run at once, so a `set` per chunk had
+each node re-rendering hundreds of lines dozens of times a second.
 
 `bus::strip_ansi` runs on every line before it reaches the canvas. Agent CLIs
 colour their output and redraw spinners with escape codes, and a carriage

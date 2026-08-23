@@ -46,6 +46,9 @@
 
   --wire: #3d8bfd;
   --sel: #3d8bfd;
+  /* peer traffic: the bead on a wire and the `[message from ...]` transcript
+     line share one colour, so a bead landing explains the line that follows. */
+  --peer: #d8b4fe;
   --live: #2fd45e;
   --red: #ff5f57;
   --yellow: #febc2e;
@@ -162,21 +165,73 @@ body {
   display: none;
 }
 
+/* ---------- wires ----------
+   A wire is the only visible evidence that two agents talk to each other, so
+   it earns its own edge component. Resting it is quiet. While either end is
+   working it brightens and a dotted current drifts along it. Every message
+   sends a bead down it in the direction the message travelled. */
+
 .react-flow__edge-path {
+  fill: none;
   stroke: var(--wire);
-  stroke-width: 1.6;
+  stroke-width: 1.7;
+  opacity: 0.5;
+  transition: opacity 0.2s ease, stroke-width 0.2s ease;
 }
 
-.react-flow__edge.selected .react-flow__edge-path,
+.wire-halo {
+  fill: none;
+  stroke: var(--wire);
+  stroke-width: 7;
+  opacity: 0.07;
+  transition: opacity 0.24s ease;
+  pointer-events: none;
+}
+
+.wire.is-live .react-flow__edge-path {
+  opacity: 0.92;
+}
+
+.wire.is-live .wire-halo {
+  opacity: 0.18;
+}
+
+.wire.is-sel .react-flow__edge-path,
 .react-flow__edge:hover .react-flow__edge-path {
-  stroke: #6aa8ff;
-  stroke-width: 2.2;
+  opacity: 1;
+  stroke-width: 2.4;
+}
+
+.wire-flow {
+  fill: none;
+  stroke: var(--live);
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-dasharray: 0.5 11;
+  opacity: 0.8;
+  animation: wire-drift 1.15s linear infinite;
+  pointer-events: none;
+}
+
+@keyframes wire-drift {
+  to {
+    stroke-dashoffset: -11.5;
+  }
+}
+
+.wire-bead {
+  fill: var(--peer);
+  stroke: var(--peer);
+  stroke-width: 5;
+  stroke-opacity: 0.22;
+  pointer-events: none;
 }
 
 .react-flow__connection-path {
   stroke: var(--live);
   stroke-width: 2;
   stroke-dasharray: 4 3;
+  animation: wire-drift 0.5s linear infinite;
 }
 
 .react-flow__node.selected {
@@ -491,12 +546,95 @@ body {
   border-radius: var(--r-win);
   background: var(--win-bg);
   box-shadow: var(--shadow-win);
-  transition: border-color 0.14s ease, box-shadow 0.14s ease;
+  transition: border-color 0.14s ease, box-shadow 0.16s ease;
 }
 
-.agent-window.selected {
+.agent-window:hover {
+  border-color: rgba(255, 255, 255, 0.18);
+}
+
+/* Picking a window up lifts it. The shadow stays tight: inside ReactFlow's
+   zoom transform WebKit scales a shadow's blur with the zoom factor. */
+.react-flow__node.dragging .agent-window,
+.react-flow__node.dragging .project-card {
+  box-shadow: 0 18px 38px rgba(0, 0, 0, 0.5), 0 3px 8px rgba(0, 0, 0, 0.4);
+  border-color: rgba(255, 255, 255, 0.22);
+}
+
+.agent-window.selected,
+.agent-window.selected:hover {
   border-color: var(--sel);
   box-shadow: var(--shadow-win), 0 0 0 1px var(--sel);
+}
+
+/* A working agent shows it on the node itself, not only in the header dot.
+   Painted as a moving gradient rather than a moving element: nothing here
+   needs `overflow: hidden`, which is what clipped the canvas once before. */
+.agent-window.is-running::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  z-index: 6;
+  pointer-events: none;
+  background: linear-gradient(90deg, transparent, var(--live), transparent);
+  background-size: 32% 100%;
+  background-repeat: no-repeat;
+  opacity: 0.9;
+  animation: scan 2s cubic-bezier(0.42, 0, 0.58, 1) infinite;
+}
+
+@keyframes scan {
+  from {
+    background-position: -45% 0;
+  }
+  to {
+    background-position: 145% 0;
+  }
+}
+
+/* A turn ending is worth as much as a turn starting: without this the only
+   signal that an agent finished is a dot quietly changing colour. */
+.agent-window.just-done::after {
+  content: "";
+  position: absolute;
+  inset: -1px;
+  z-index: 5;
+  pointer-events: none;
+  animation: settle 0.9s ease-out forwards;
+}
+
+@keyframes settle {
+  from {
+    box-shadow: inset 0 0 0 1px var(--live);
+    opacity: 0.9;
+  }
+  to {
+    box-shadow: inset 0 0 0 1px var(--live);
+    opacity: 0;
+  }
+}
+
+/* Everything the canvas holds arrives rather than appears. `scale` is used as
+   its own property so it composes with the sticky note's `transform: rotate`
+   instead of cancelling it. */
+.agent-window,
+.sticky-note,
+.project-card {
+  animation: node-in 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@keyframes node-in {
+  from {
+    opacity: 0;
+    scale: 0.975;
+  }
+  to {
+    opacity: 1;
+    scale: 1;
+  }
 }
 
 .twin-head {
@@ -522,18 +660,24 @@ body {
   flex: none;
 }
 
+/* The ring is drawn in the dot's own colour, so a waiting agent pulses amber
+   and a working one green. `--dot` is set inline next to the background. */
 .dot-pulse {
-  animation: pulse 1.5s ease-in-out infinite;
+  animation: pulse 1.6s ease-out infinite;
 }
 
 @keyframes pulse {
-  0%,
+  0% {
+    box-shadow: 0 0 0 0 var(--dot-ring, rgba(47, 212, 94, 0.55));
+  }
+  70%,
   100% {
-    box-shadow: 0 0 0 0 rgba(47, 212, 94, 0.5);
+    box-shadow: 0 0 0 7px transparent;
   }
-  60% {
-    box-shadow: 0 0 0 6px rgba(47, 212, 94, 0);
-  }
+}
+
+.status-dot {
+  transition: background 0.25s ease;
 }
 
 .twin-name {
@@ -591,6 +735,10 @@ body {
   color: var(--txt);
 }
 
+.win-btn:active {
+  scale: 0.88;
+}
+
 .win-btn.danger:hover {
   background: rgba(255, 95, 87, 0.2);
   color: #ff8a84;
@@ -619,34 +767,95 @@ body {
   display: grid;
   place-items: center;
   border-radius: 9px;
-  background: var(--wire);
-  color: #fff;
+  background: var(--peer);
+  color: #14171e;
   font-size: 10.5px;
   font-weight: 700;
   flex: none;
+  animation: badge-pop 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+@keyframes badge-pop {
+  from {
+    scale: 0.4;
+    opacity: 0;
+  }
+  60% {
+    scale: 1.14;
+  }
+  to {
+    scale: 1;
+    opacity: 1;
+  }
 }
 
 .twin-body {
   flex: 1;
   margin: 0;
-  padding: 9px 11px;
+  padding: 9px 11px 11px;
   background: var(--term-bg);
   color: #d7dbe2;
   font-family: var(--mono);
   font-size: 11.5px;
-  line-height: 1.58;
+  line-height: 1.62;
+  letter-spacing: 0.1px;
   white-space: pre-wrap;
   word-break: break-word;
   overflow-y: auto;
+  overscroll-behavior: contain;
   user-select: text;
   cursor: text;
 }
 
+.twin-body::selection,
+.twin-body *::selection {
+  background: color-mix(in srgb, var(--wire) 42%, transparent);
+}
+
+/* Slimmer, quieter bars than the app-wide default: a terminal that is mostly
+   scrollbar reads as chrome, not content. */
+.twin-body::-webkit-scrollbar {
+  width: 6px;
+}
+
+.twin-body::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.twin-body:hover::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+/* Text passes under the header instead of colliding with it. A painted
+   gradient, not a mask — masks composite badly in a transparent window. */
+.twin-fade {
+  position: absolute;
+  left: 1px;
+  right: 1px;
+  top: 32px;
+  height: 13px;
+  z-index: 3;
+  pointer-events: none;
+  background: linear-gradient(var(--term-bg), transparent);
+}
+
 /* ---------- transcript lines ---------- */
 
+/* Lines are keyed by absolute position in the stream, so this plays once as
+   each line arrives and never replays when the scrollback buffer trims. */
 .ln {
   white-space: pre-wrap;
   word-break: break-word;
+  animation: ln-in 0.16s ease-out;
+}
+
+@keyframes ln-in {
+  from {
+    opacity: 0.25;
+  }
+  to {
+    opacity: 1;
+  }
 }
 
 .ln-tool {
@@ -679,22 +888,29 @@ body {
 }
 
 .ln-peer {
-  color: #d8b4fe;
+  color: var(--peer);
 }
 
 .usage {
   color: var(--dim);
 }
 
+/* Only rendered while the agent is actually producing output. A cursor
+   blinking under an idle agent claims work that is not happening. */
 .twin-body .cursor-line::after {
   content: "▋";
   color: var(--live);
-  animation: blink 1.05s steps(2, start) infinite;
+  animation: blink 1.1s ease-in-out infinite;
 }
 
 @keyframes blink {
-  to {
-    visibility: hidden;
+  0%,
+  44% {
+    opacity: 1;
+  }
+  56%,
+  100% {
+    opacity: 0.12;
   }
 }
 
@@ -1262,9 +1478,11 @@ body {
 .toasts {
   position: absolute;
   right: 14px;
-  bottom: 88px;
+  /* Clear of the minimap, which also sits bottom-right. Stacks upward. */
+  bottom: 152px;
   display: flex;
   flex-direction: column;
+  align-items: flex-end;
   gap: 7px;
   z-index: 70;
   pointer-events: none;
@@ -1277,10 +1495,36 @@ body {
   border-radius: 10px;
   background: var(--glass-strong);
   box-shadow: var(--shadow-glass);
+  font-family: var(--ui);
   font-size: 12px;
   line-height: 1.45;
+  text-align: left;
   color: var(--txt);
-  animation: card-in 0.2s cubic-bezier(0.2, 0.8, 0.3, 1);
+  pointer-events: auto;
+  cursor: pointer;
+  animation: toast-in 0.24s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    translate: 14px 0;
+    scale: 0.97;
+  }
+}
+
+/* Held in the DOM for one beat after dismissal so it can leave rather than
+   vanish. `TOAST_EXIT_MS` in store.ts must match this duration. */
+.toast.leaving {
+  animation: toast-out 0.2s ease-in forwards;
+}
+
+@keyframes toast-out {
+  to {
+    opacity: 0;
+    translate: 14px 0;
+    scale: 0.97;
+  }
 }
 
 .toast.err {
@@ -1320,6 +1564,7 @@ body {
 .empty-inner {
   text-align: center;
   max-width: 400px;
+  animation: card-in 0.4s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .empty-title {
@@ -1398,6 +1643,7 @@ body {
   --dim: #949cab;
   --wire: #3d8bfd;
   --live: #2fd45e;
+  --peer: #d8b4fe;
 }
 
 .shell[data-theme="tokyo-night"] {
@@ -1409,6 +1655,7 @@ body {
   --dim: #787c99;
   --wire: #7aa2f7;
   --live: #9ece6a;
+  --peer: #bb9af7;
 }
 
 .shell[data-theme="dracula"] {
@@ -1420,6 +1667,7 @@ body {
   --dim: #8b8fa3;
   --wire: #bd93f9;
   --live: #50fa7b;
+  --peer: #bd93f9;
 }
 
 .shell[data-theme="nord"] {
@@ -1431,6 +1679,7 @@ body {
   --dim: #8f9bb3;
   --wire: #88c0d0;
   --live: #a3be8c;
+  --peer: #b48ead;
 }
 
 .shell[data-theme="catppuccin"] {
@@ -1442,6 +1691,7 @@ body {
   --dim: #8b90a8;
   --wire: #89b4fa;
   --live: #a6e3a1;
+  --peer: #cba6f7;
 }
 
 .shell[data-theme="gruvbox"] {
@@ -1453,6 +1703,7 @@ body {
   --dim: #a89984;
   --wire: #83a598;
   --live: #b8bb26;
+  --peer: #d3869b;
 }
 
 .shell[data-theme="one-dark"] {
@@ -1464,6 +1715,7 @@ body {
   --dim: #7f848e;
   --wire: #61afef;
   --live: #98c379;
+  --peer: #c678dd;
 }
 
 .shell[data-theme="rose-pine"] {
@@ -1475,6 +1727,7 @@ body {
   --dim: #908caa;
   --wire: #c4a7e7;
   --live: #9ccfd8;
+  --peer: #c4a7e7;
 }
 
 .shell[data-theme="solarized"] {
@@ -1486,6 +1739,7 @@ body {
   --dim: #93a1a1;
   --wire: #268bd2;
   --live: #859900;
+  --peer: #6c71c4;
 }
 
 .shell[data-theme="ink"] {
@@ -1497,6 +1751,7 @@ body {
   --dim: #8d8d8d;
   --wire: #6e8cff;
   --live: #3ddc84;
+  --peer: #a78bfa;
 }
 
 /* selection colour follows the accent */

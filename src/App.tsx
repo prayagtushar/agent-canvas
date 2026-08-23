@@ -23,10 +23,25 @@ export default function App() {
     const unlisteners: (() => void)[] = [];
     let disposed = false;
 
+    // Agent output arrives in small bursts from several processes at once.
+    // Held here and written once per frame, so the canvas repaints at the
+    // display's rate instead of the CLIs' combined output rate.
+    const pending = new Map<string, string>();
+    let frame = 0;
+    const flush = () => {
+      frame = 0;
+      if (pending.size === 0) return;
+      useStore.getState().appendOutputs(Object.fromEntries(pending));
+      pending.clear();
+    };
+
     const register = async () => {
       const offOutput = await listen<{ nodeId: string; chunk: string }>(
         "agent-output",
-        ({ payload }) => useStore.getState().appendOutput(payload.nodeId, payload.chunk)
+        ({ payload }) => {
+          pending.set(payload.nodeId, (pending.get(payload.nodeId) ?? "") + payload.chunk);
+          if (!frame) frame = requestAnimationFrame(flush);
+        }
       );
       const offStatus = await listen<{ nodeId: string; status: string }>(
         "agent-status",
@@ -58,6 +73,7 @@ export default function App() {
           case "message":
             st.appendOutput(payload.to, `\n[message from ${payload.from}] ${payload.text}\n`);
             st.bumpUnread(payload.to);
+            st.pulseWire(payload.from, payload.to);
             break;
           case "task":
             st.upsertTask(payload.task);
@@ -102,6 +118,7 @@ export default function App() {
 
     return () => {
       disposed = true;
+      if (frame) cancelAnimationFrame(frame);
       unlisteners.forEach((off) => off());
     };
   }, []);

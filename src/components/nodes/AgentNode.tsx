@@ -12,6 +12,13 @@ const STATUS_COLOR: Record<string, string> = {
   error: "#ff5f57",
 };
 
+/** The expanding ring around the status dot, drawn in the dot's own colour so
+ *  a waiting agent pulses amber and a working one green. */
+const STATUS_RING: Record<string, string> = {
+  running: "rgba(47, 212, 94, 0.55)",
+  waiting: "rgba(254, 188, 46, 0.55)",
+};
+
 const TAG_CLASS: Record<string, string> = {
   claude: "tag-claude",
   codex: "tag-codex",
@@ -53,45 +60,29 @@ function Dots() {
 
 /** Agent output is mostly tool calls and short prose. Giving each line kind
  *  its own colour is the difference between a wall of text and a transcript
- *  you can skim. */
-function renderLine(line: string, i: number) {
-  if (line.startsWith("> ")) {
-    const m = line.match(/^> ([A-Za-z0-9_]+)\((.*)\)$/);
+ *  you can skim.
+ *
+ *  Memoised because a transcript runs to hundreds of lines and only the last
+ *  one changes when a chunk arrives. Keyed by absolute position in the stream
+ *  by the caller, so a scrollback trim does not renumber every line. */
+const Line = memo(function Line({ text }: { text: string }) {
+  if (text.startsWith("> ")) {
+    const m = text.match(/^> ([A-Za-z0-9_]+)\((.*)\)$/);
     if (m) {
       return (
-        <div key={i} className="ln ln-tool">
+        <div className="ln ln-tool">
           <span className="ln-caret">›</span>
           <span className="ln-tool-name">{m[1]}</span>
           {m[2] && <span className="ln-tool-arg">{m[2]}</span>}
         </div>
       );
     }
-    return (
-      <div key={i} className="ln ln-tool">
-        {line.slice(2)}
-      </div>
-    );
+    return <div className="ln ln-tool">{text.slice(2)}</div>;
   }
-  if (line.startsWith("· ")) {
-    return (
-      <div key={i} className="ln ln-meta">
-        {line}
-      </div>
-    );
-  }
-  if (line.startsWith("[message from")) {
-    return (
-      <div key={i} className="ln ln-peer">
-        {line}
-      </div>
-    );
-  }
-  return (
-    <div key={i} className="ln">
-      {line}
-    </div>
-  );
-}
+  if (text.startsWith("· ")) return <div className="ln ln-meta">{text}</div>;
+  if (text.startsWith("[message from")) return <div className="ln ln-peer">{text}</div>;
+  return <div className="ln">{text}</div>;
+});
 
 function formatTokens(n: number): string {
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
@@ -105,6 +96,7 @@ function AgentNodeInner({ id, data, selected }: NodeProps<AgentFlowNode>) {
   const status = useStore((s) => s.statuses[data.nodeId]) || data.status;
   const search = useStore((s) => s.search);
   const usage = useStore((s) => s.usage[data.nodeId]);
+  const trimmed = useStore((s) => s.trimmed[data.nodeId] ?? 0);
   const setNodes = useStore((s) => s.setNodes);
   const setSelected = useStore((s) => s.setSelected);
   const removeNode = useStore((s) => s.removeNode);
@@ -112,8 +104,10 @@ function AgentNodeInner({ id, data, selected }: NodeProps<AgentFlowNode>) {
 
   const [prompt, setPrompt] = useState("");
   const [expanded, setExpanded] = useState(false);
+  const [done, setDone] = useState(false);
   const bodyRef = useRef<HTMLPreElement>(null);
   const pinnedRef = useRef(true);
+  const wasBusy = useRef(false);
 
   // Follow the tail unless the operator has scrolled up to read something.
   useEffect(() => {
@@ -122,6 +116,18 @@ function AgentNodeInner({ id, data, selected }: NodeProps<AgentFlowNode>) {
   }, [output]);
 
   const running = status === "running" || status === "waiting";
+
+  // Flash the frame once when a turn ends. Without it the only sign an agent
+  // finished is the header dot quietly changing colour.
+  useEffect(() => {
+    if (wasBusy.current && !running) {
+      setDone(true);
+      const t = setTimeout(() => setDone(false), 900);
+      return () => clearTimeout(t);
+    }
+    wasBusy.current = running;
+  }, [running]);
+
   const color = STATUS_COLOR[status] ?? STATUS_COLOR.idle;
   const hit = search !== "" && data.label.toLowerCase().includes(search.toLowerCase());
   const dirName = data.cwd.split("/").filter(Boolean).pop() ?? data.cwd;
@@ -148,7 +154,9 @@ function AgentNodeInner({ id, data, selected }: NodeProps<AgentFlowNode>) {
 
   return (
     <div
-      className={`agent-window ${selected ? "selected" : ""} ${hit ? "hit" : ""}`}
+      className={`agent-window ${selected ? "selected" : ""} ${hit ? "hit" : ""} ${
+        running ? "is-running" : ""
+      } ${done ? "just-done" : ""}`}
       onMouseDown={() => setSelected(id)}
     >
       <NodeResizer
@@ -161,12 +169,20 @@ function AgentNodeInner({ id, data, selected }: NodeProps<AgentFlowNode>) {
       <Dots />
 
       <div className="twin-head">
-        <span className={`status-dot ${running ? "dot-pulse" : ""}`} style={{ background: color }} />
+        <span
+          className={`status-dot ${running ? "dot-pulse" : ""}`}
+          title={status}
+          style={{ background: color, ["--dot-ring" as string]: STATUS_RING[status] }}
+        />
         <span className="twin-name">{data.label}</span>
         <span className={`harness-tag ${TAG_CLASS[data.harness] ?? ""}`}>
           {HARNESS_LABEL[data.harness] ?? data.harness}
         </span>
-        {unread > 0 && <span className="unread-badge">{unread}</span>}
+        {unread > 0 && (
+          <span key={unread} className="unread-badge">
+            {unread}
+          </span>
+        )}
         <div className="twin-actions">
           {running && (
             <button
@@ -219,6 +235,8 @@ function AgentNodeInner({ id, data, selected }: NodeProps<AgentFlowNode>) {
         </div>
       </div>
 
+      <span className="twin-fade" />
+
       <pre
         ref={bodyRef}
         className="twin-body nowheel"
@@ -229,8 +247,10 @@ function AgentNodeInner({ id, data, selected }: NodeProps<AgentFlowNode>) {
       >
         {output ? (
           <>
-            {output.split("\n").map(renderLine)}
-            <span className="cursor-line" />
+            {output.split("\n").map((line, i) => (
+              <Line key={trimmed + i} text={line} />
+            ))}
+            {running && <span className="cursor-line" />}
           </>
         ) : (
           <span className="muted">

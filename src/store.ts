@@ -21,14 +21,22 @@ import type {
   Toast,
 } from "./types";
 
-export const EDGE_STYLE = { stroke: "#3d8bfd", strokeWidth: 1.6 };
+export const EDGE_STYLE = { stroke: "var(--wire)", strokeWidth: 1.7 };
+
+/** Characters of agent output kept per node. Past this the front is dropped. */
+const SCROLLBACK = 24000;
 
 let toastSeq = 0;
+
+/** Must match the `.toast.leaving` animation in styles.css. */
+const TOAST_EXIT_MS = 200;
 
 interface StoreState {
   nodes: CanvasNode[];
   edges: Edge[];
   outputs: Record<string, string>;
+  /** Lines dropped off the front of each transcript, so line keys stay stable. */
+  trimmed: Record<string, number>;
   statuses: Record<string, string>;
   unread: Record<string, number>;
   tasks: Task[];
@@ -49,6 +57,8 @@ interface StoreState {
   memory: MemoryEntry[];
   comm: CommState;
   usage: Record<string, Usage>;
+  /** Per-wire message counter. Bumping one replays the bead on that wire. */
+  pulses: Record<string, { seq: number; reverse: boolean }>;
   /** Set on canvas init so anything can frame the view. */
   flow: ReactFlowInstance<CanvasNode, Edge> | null;
 
@@ -64,6 +74,7 @@ interface StoreState {
   removeNode: (id: string) => void;
 
   appendOutput: (nodeId: string, chunk: string) => void;
+  appendOutputs: (batch: Record<string, string>) => void;
   setStatus: (nodeId: string, status: string) => void;
   bumpUnread: (nodeId: string) => void;
   clearUnread: (nodeId: string) => void;
@@ -88,6 +99,7 @@ interface StoreState {
   setMemory: (m: MemoryEntry[]) => void;
   setComm: (c: CommState) => void;
   addUsage: (nodeId: string, u: Usage) => void;
+  pulseWire: (from: string, to: string) => void;
   setFlow: (f: ReactFlowInstance<CanvasNode, Edge>) => void;
   frameAll: () => void;
   promptAll: (text: string) => number;
@@ -114,6 +126,7 @@ export const useStore = create<StoreState>()((set, get) => ({
   nodes: [],
   edges: [],
   outputs: {},
+  trimmed: {},
   statuses: {},
   unread: {},
   tasks: [],
@@ -132,6 +145,7 @@ export const useStore = create<StoreState>()((set, get) => ({
   memory: [],
   comm: { autoComm: true, sent: 0, cap: 200 },
   usage: {},
+  pulses: {},
   flow: null,
 
   onNodesChange: (changes) =>
@@ -243,16 +257,38 @@ export const useStore = create<StoreState>()((set, get) => ({
     }));
   },
 
-  appendOutput: (nodeId, chunk) =>
+  appendOutput: (nodeId, chunk) => get().appendOutputs({ [nodeId]: chunk }),
+
+  /* One store write for a whole frame's worth of output from every agent.
+     Agent CLIs emit in small bursts, and a `set` per chunk had each node
+     re-rendering its entire transcript dozens of times a second. */
+  appendOutputs: (batch) =>
     set((s) => {
-      const next = (s.outputs[nodeId] ?? "") + chunk;
-      let tail = next;
-      if (tail.length > 24000) {
-        const cut = tail.slice(-24000);
+      const outputs = { ...s.outputs };
+      let trimmed: Record<string, number> | null = null;
+
+      for (const nodeId of Object.keys(batch)) {
+        const next = (s.outputs[nodeId] ?? "") + batch[nodeId];
+        if (next.length <= SCROLLBACK) {
+          outputs[nodeId] = next;
+          continue;
+        }
+        // Drop from the front on a line boundary, and count the lines that
+        // went. The transcript keys lines by absolute position in the stream;
+        // without this count every trim would renumber the whole buffer and
+        // replay the arrival animation across all of it.
+        const cut = next.slice(-SCROLLBACK);
         const nl = cut.indexOf("\n");
-        tail = nl >= 0 ? cut.slice(nl + 1) : cut;
+        const tail = nl >= 0 ? cut.slice(nl + 1) : cut;
+        const dropped = next.slice(0, next.length - tail.length);
+        let lines = 0;
+        for (let i = 0; i < dropped.length; i++) if (dropped[i] === "\n") lines++;
+        outputs[nodeId] = tail;
+        trimmed = trimmed ?? { ...s.trimmed };
+        trimmed[nodeId] = (s.trimmed[nodeId] ?? 0) + lines;
       }
-      return { outputs: { ...s.outputs, [nodeId]: tail } };
+
+      return trimmed ? { outputs, trimmed } : { outputs };
     }),
 
   setStatus: (nodeId, status) =>
@@ -267,7 +303,7 @@ export const useStore = create<StoreState>()((set, get) => ({
   clearUnread: (nodeId) =>
     set((s) => (s.unread[nodeId] ? { unread: { ...s.unread, [nodeId]: 0 } } : s)),
 
-  clearOutputs: () => set({ outputs: {} }),
+  clearOutputs: () => set({ outputs: {}, trimmed: {} }),
 
   upsertTask: (t) =>
     set((s) => {
@@ -296,7 +332,16 @@ export const useStore = create<StoreState>()((set, get) => ({
     setTimeout(() => get().dismissToast(id), kind === "err" ? 6000 : 3200);
   },
 
-  dismissToast: (id) => set((s) => ({ toasts: s.toasts.filter((t) => t.id !== id) })),
+  /** Flag it first so the card can animate out, then drop it. */
+  dismissToast: (id) => {
+    set((s) => ({
+      toasts: s.toasts.map((t) => (t.id === id ? { ...t, leaving: true } : t)),
+    }));
+    setTimeout(
+      () => set((s) => ({ toasts: s.toasts.filter((t) => t.id !== id) })),
+      TOAST_EXIT_MS
+    );
+  },
 
   setSelected: (id) =>
     set((s) => {
@@ -373,6 +418,20 @@ export const useStore = create<StoreState>()((set, get) => ({
       };
     }),
 
+  /** Fire the travelling bead on the wire joining two agents. The Bus stores
+   *  peers as unordered pairs, so the wire may be drawn either way round;
+   *  `reverse` tells the edge which way the message actually went. */
+  pulseWire: (from, to) =>
+    set((s) => {
+      const forward = `bus-${from}-${to}`;
+      const backward = `bus-${to}-${from}`;
+      const has = (id: string) => s.edges.some((e) => e.id === id);
+      const id = has(forward) ? forward : has(backward) ? backward : null;
+      if (!id) return s;
+      const seq = (s.pulses[id]?.seq ?? 0) + 1;
+      return { pulses: { ...s.pulses, [id]: { seq, reverse: id === backward } } };
+    }),
+
   refreshComm: async () => {
     try {
       set({ comm: await api.getCommState() });
@@ -416,6 +475,7 @@ export const useStore = create<StoreState>()((set, get) => ({
     set(() => ({
       edges: pairs.map(([a, b]) => ({
         id: `bus-${a}-${b}`,
+        type: "wire",
         source: a,
         target: b,
         style: EDGE_STYLE,

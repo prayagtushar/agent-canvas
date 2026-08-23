@@ -7,12 +7,14 @@ import {
   type Connection,
   type Edge,
   type Node,
+  type EdgeTypes,
   type NodeTypes,
 } from "@xyflow/react";
 import AgentNode from "./nodes/AgentNode";
 import TaskBoardNode from "./nodes/TaskBoardNode";
 import NoteNode from "./nodes/NoteNode";
 import MemoryNode from "./nodes/MemoryNode";
+import WireEdge from "./WireEdge";
 import { useStore } from "../store";
 import { api } from "../api";
 
@@ -22,6 +24,8 @@ const nodeTypes = {
   note: NoteNode,
   memory: MemoryNode,
 } satisfies NodeTypes;
+
+const edgeTypes = { wire: WireEdge } satisfies EdgeTypes;
 
 function minimapNodeColor(node: { type?: string }): string {
   if (node.type === "note") return "#f7e9a8";
@@ -95,6 +99,7 @@ export default function Canvas() {
         nodes={nodes}
         edges={edges}
         nodeTypes={nodeTypes}
+        edgeTypes={edgeTypes}
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
         onConnect={onConnect}

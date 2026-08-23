@@ -32,6 +32,8 @@ export interface Toast {
   id: number;
   kind: "ok" | "err";
   text: string;
+  /** Set for the moment between dismissal and removal, to animate out. */
+  leaving?: boolean;
 }
 
 export interface HarnessInfo {
