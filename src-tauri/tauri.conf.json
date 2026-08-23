@@ -44,6 +44,13 @@
       "icons/128x128@2x.png",
       "icons/icon.icns",
       "icons/icon.ico"
-    ]
+    ],
+    "category": "DeveloperTool",
+    "copyright": "\u00a9 2026 Agent Canvas contributors. MIT licensed.",
+    "shortDescription": "Run several AI coding agents on one canvas.",
+    "longDescription": "Agent Canvas runs AI coding CLIs as real processes on a spatial canvas. Agents discover each other only through connections you draw, share a task board and a common memory, and escalate decisions back to you.",
+    "macOS": {
+      "minimumSystemVersion": "10.15"
+    }
   }
 }

@@ -44,6 +44,12 @@ export interface HarnessInfo {
   bus: boolean;
 }
 
+export interface Usage {
+  tokensIn: number;
+  tokensOut: number;
+  costUsd: number;
+}
+
 export interface CommState {
   autoComm: boolean;
   sent: number;
@@ -62,7 +68,30 @@ export interface BusInfo {
   token: string;
 }
 
-export type Theme = "midnight" | "slate" | "ink" | "aurora";
+export type Theme =
+  | "midnight"
+  | "tokyo-night"
+  | "dracula"
+  | "nord"
+  | "catppuccin"
+  | "gruvbox"
+  | "one-dark"
+  | "rose-pine"
+  | "solarized"
+  | "ink";
+
+export const THEMES: { id: Theme; label: string; swatch: string }[] = [
+  { id: "midnight", label: "Midnight", swatch: "#3d8bfd" },
+  { id: "tokyo-night", label: "Tokyo Night", swatch: "#7aa2f7" },
+  { id: "dracula", label: "Dracula", swatch: "#bd93f9" },
+  { id: "nord", label: "Nord", swatch: "#88c0d0" },
+  { id: "catppuccin", label: "Catppuccin", swatch: "#89b4fa" },
+  { id: "gruvbox", label: "Gruvbox", swatch: "#b8bb26" },
+  { id: "one-dark", label: "One Dark", swatch: "#61afef" },
+  { id: "rose-pine", label: "Rosé Pine", swatch: "#c4a7e7" },
+  { id: "solarized", label: "Solarized", swatch: "#268bd2" },
+  { id: "ink", label: "Ink", swatch: "#6e8cff" },
+];
 
 export type BusEvent =
   | { kind: "message"; from: string; to: string; text: string }

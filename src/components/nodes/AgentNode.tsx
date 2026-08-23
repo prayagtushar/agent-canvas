@@ -51,11 +51,60 @@ function Dots() {
   );
 }
 
+/** Agent output is mostly tool calls and short prose. Giving each line kind
+ *  its own colour is the difference between a wall of text and a transcript
+ *  you can skim. */
+function renderLine(line: string, i: number) {
+  if (line.startsWith("> ")) {
+    const m = line.match(/^> ([A-Za-z0-9_]+)\((.*)\)$/);
+    if (m) {
+      return (
+        <div key={i} className="ln ln-tool">
+          <span className="ln-caret">›</span>
+          <span className="ln-tool-name">{m[1]}</span>
+          {m[2] && <span className="ln-tool-arg">{m[2]}</span>}
+        </div>
+      );
+    }
+    return (
+      <div key={i} className="ln ln-tool">
+        {line.slice(2)}
+      </div>
+    );
+  }
+  if (line.startsWith("· ")) {
+    return (
+      <div key={i} className="ln ln-meta">
+        {line}
+      </div>
+    );
+  }
+  if (line.startsWith("[message from")) {
+    return (
+      <div key={i} className="ln ln-peer">
+        {line}
+      </div>
+    );
+  }
+  return (
+    <div key={i} className="ln">
+      {line}
+    </div>
+  );
+}
+
+function formatTokens(n: number): string {
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
+  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}k`;
+  return String(n);
+}
+
 function AgentNodeInner({ id, data, selected }: NodeProps<AgentFlowNode>) {
   const output = useStore((s) => s.outputs[data.nodeId]);
   const unread = useStore((s) => s.unread[data.nodeId] ?? 0);
   const status = useStore((s) => s.statuses[data.nodeId]) || data.status;
   const search = useStore((s) => s.search);
+  const usage = useStore((s) => s.usage[data.nodeId]);
   const setNodes = useStore((s) => s.setNodes);
   const setSelected = useStore((s) => s.setSelected);
   const removeNode = useStore((s) => s.removeNode);
@@ -148,6 +197,20 @@ function AgentNodeInner({ id, data, selected }: NodeProps<AgentFlowNode>) {
               <path d="M15 3h6v6M9 21H3v-15M21 3l-7 7M3 21l7-7" />
             </svg>
           </button>
+          <button
+            className="win-btn"
+            title="Restart this agent"
+            onClick={() => {
+              void api
+                .interruptAgent(data.nodeId)
+                .catch(() => undefined)
+                .then(() => pushToast("ok", `${data.label} interrupted. Send it a prompt to restart.`));
+            }}
+          >
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M21 12a9 9 0 1 1-2.6-6.4M21 3v6h-6" />
+            </svg>
+          </button>
           <button className="win-btn danger" title="Stop and remove" onClick={() => removeNode(id)}>
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
               <path d="M18 6 6 18M6 6l12 12" />
@@ -166,8 +229,7 @@ function AgentNodeInner({ id, data, selected }: NodeProps<AgentFlowNode>) {
       >
         {output ? (
           <>
-            {output}
-            {"\n"}
+            {output.split("\n").map(renderLine)}
             <span className="cursor-line" />
           </>
         ) : (
@@ -207,6 +269,18 @@ function AgentNodeInner({ id, data, selected }: NodeProps<AgentFlowNode>) {
           <span>{status}</span>
           <span className="sep">|</span>
           <span>{dirName}</span>
+          {usage && (usage.tokensIn > 0 || usage.tokensOut > 0) && (
+            <>
+              <span className="sep">|</span>
+              <span
+                className="usage"
+                title={`${usage.tokensIn.toLocaleString()} in, ${usage.tokensOut.toLocaleString()} out`}
+              >
+                {formatTokens(usage.tokensIn + usage.tokensOut)} tok
+                {usage.costUsd > 0 && ` · $${usage.costUsd.toFixed(3)}`}
+              </span>
+            </>
+          )}
           <span className="sep">|</span>
           <span className="auto-mode">▶▶ auto mode on</span>
         </div>

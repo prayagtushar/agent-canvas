@@ -13,6 +13,9 @@ fn node(id: &str, harness: &str) -> NodeInfo {
         status: "idle".to_string(),
         output_tail: vec![],
         unread: 0,
+        tokens_in: 0,
+        tokens_out: 0,
+        cost_usd: 0.0,
     }
 }
 
@@ -126,4 +129,35 @@ fn disconnecting_removes_the_peer() {
     assert!(bus.peers_of("a").is_empty());
     bus.add_message("a", "b", "still there?")
         .expect_err("a severed edge closes the channel");
+}
+
+#[test]
+fn terminal_control_codes_never_reach_the_canvas() {
+    use agent_canvas_lib::bus::strip_ansi;
+
+    // SGR colour codes, the kind every CLI wraps its output in
+    assert_eq!(strip_ansi("\x1b[32mdone\x1b[0m"), "done");
+    // cursor movement and erase-line
+    assert_eq!(strip_ansi("\x1b[2K\x1b[1Gloading"), "loading");
+    // OSC title sequence terminated by BEL
+    assert_eq!(strip_ansi("\x1b]0;a title\x07text"), "text");
+    // a spinner redraws with carriage returns; only the last frame matters
+    assert_eq!(strip_ansi("step 1\rstep 2\rstep 3"), "step 3");
+    // plain text and unicode survive untouched
+    assert_eq!(strip_ansi("plain ✓ café"), "plain ✓ café");
+    assert_eq!(strip_ansi(""), "");
+}
+
+#[test]
+fn usage_accumulates_across_turns() {
+    let bus = BusShared::new();
+    bus.register_node(node("a", "claude"));
+
+    bus.add_usage("a", 1200, 300, 0.021);
+    bus.add_usage("a", 800, 150, 0.009);
+
+    let n = bus.get_node("a").unwrap();
+    assert_eq!(n.tokens_in, 2000);
+    assert_eq!(n.tokens_out, 450);
+    assert!((n.cost_usd - 0.030).abs() < 1e-9, "cost was {}", n.cost_usd);
 }

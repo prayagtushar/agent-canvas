@@ -103,6 +103,7 @@ export default function Canvas() {
         onPaneClick={() => setSelected(null)}
         onNodeContextMenu={onNodeContextMenu}
         onPaneContextMenu={onPaneContextMenu}
+        onInit={(inst) => useStore.getState().setFlow(inst)}
         onMove={(_, state) => setZoom(state.zoom * 100)}
         defaultViewport={{ x: 60, y: 60, zoom: 0.92 }}
         minZoom={0.2}

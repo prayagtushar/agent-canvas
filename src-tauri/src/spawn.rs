@@ -157,6 +157,9 @@ pub fn launch_agent(
         status: "idle".to_string(),
         output_tail: vec![],
         unread: 0,
+        tokens_in: 0,
+        tokens_out: 0,
+        cost_usd: 0.0,
     });
     write_mcp_configs(shared, &id, &harness)?;
     if !prompt.trim().is_empty() {
@@ -422,6 +425,10 @@ fn start_process(
     Ok(())
 }
 
+/// Turn one harness output line into something worth reading on the canvas.
+/// Claude Code speaks stream-json, so tool calls become `> Read(src/foo.rs)`
+/// lines instead of vanishing; everything else is plain text with terminal
+/// control codes stripped.
 fn classify_and_push(shared: &crate::bus::BusShared, id: &str, harness: &str, line: &str) {
     match harness {
         "claude" => {
@@ -438,26 +445,41 @@ fn classify_and_push(shared: &crate::bus::BusShared, id: &str, harness: &str, li
                 if let Some(sid) = v.get("session_id").and_then(Value::as_str) {
                     sessions().lock().insert(id.to_string(), sid.to_string());
                 }
+                if let Some(model) = v.get("model").and_then(Value::as_str) {
+                    shared.push_output(id, &format!("· {model}"));
+                }
             } else if kind == "assistant" {
-                let mut texts: Vec<&str> = Vec::new();
                 if let Some(items) = v
                     .get("message")
                     .and_then(|m| m.get("content"))
                     .and_then(Value::as_array)
                 {
                     for item in items {
-                        if let Some(t) = item.get("text").and_then(Value::as_str) {
-                            texts.push(t);
+                        match item.get("type").and_then(Value::as_str) {
+                            Some("text") => {
+                                if let Some(t) = item.get("text").and_then(Value::as_str) {
+                                    if !t.trim().is_empty() {
+                                        shared.push_output(id, t);
+                                    }
+                                }
+                            }
+                            Some("tool_use") => {
+                                let name =
+                                    item.get("name").and_then(Value::as_str).unwrap_or("tool");
+                                shared
+                                    .push_output(id, &format!("> {}({})", name, tool_brief(item)));
+                            }
+                            _ => {}
                         }
                     }
                 }
-                if !texts.is_empty() {
-                    shared.push_output(id, &texts.join("\n"));
-                }
             } else if kind == "result" {
                 if let Some(r) = v.get("result").and_then(Value::as_str) {
-                    shared.push_output(id, r);
+                    if !r.trim().is_empty() {
+                        shared.push_output(id, r);
+                    }
                 }
+                record_usage(shared, id, &v);
             }
         }
         "gemini" => match serde_json::from_str::<Value>(line) {
@@ -468,5 +490,58 @@ fn classify_and_push(shared: &crate::bus::BusShared, id: &str, harness: &str, li
             Err(_) => shared.push_output(id, line),
         },
         _ => shared.push_output(id, line),
+    }
+}
+
+/// The most useful identifying argument of a tool call, kept short.
+fn tool_brief(item: &Value) -> String {
+    let input = match item.get("input").and_then(Value::as_object) {
+        Some(o) => o,
+        None => return String::new(),
+    };
+    for key in [
+        "file_path",
+        "path",
+        "pattern",
+        "command",
+        "url",
+        "query",
+        "key",
+        "peer_id",
+        "title",
+        "task_id",
+        "description",
+        "prompt",
+    ] {
+        if let Some(v) = input.get(key).and_then(Value::as_str) {
+            let one_line = v.replace('\n', " ");
+            let trimmed = one_line.trim();
+            return if trimmed.chars().count() > 60 {
+                format!("{}…", trimmed.chars().take(60).collect::<String>())
+            } else {
+                trimmed.to_string()
+            };
+        }
+    }
+    String::new()
+}
+
+fn record_usage(shared: &crate::bus::BusShared, id: &str, v: &Value) {
+    let cost = v
+        .get("total_cost_usd")
+        .and_then(Value::as_f64)
+        .unwrap_or(0.0);
+    let usage = v.get("usage");
+    let get = |k: &str| {
+        usage
+            .and_then(|u| u.get(k))
+            .and_then(Value::as_u64)
+            .unwrap_or(0)
+    };
+    let tin =
+        get("input_tokens") + get("cache_read_input_tokens") + get("cache_creation_input_tokens");
+    let tout = get("output_tokens");
+    if tin > 0 || tout > 0 || cost > 0.0 {
+        shared.add_usage(id, tin, tout, cost);
     }
 }

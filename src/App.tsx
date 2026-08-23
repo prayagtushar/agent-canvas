@@ -40,6 +40,18 @@ export default function App() {
           }
         }
       );
+      const offUsage = await listen<{
+        nodeId: string;
+        tokensIn: number;
+        tokensOut: number;
+        costUsd: number;
+      }>("agent-usage", ({ payload }) => {
+        useStore.getState().addUsage(payload.nodeId, {
+          tokensIn: payload.tokensIn,
+          tokensOut: payload.tokensOut,
+          costUsd: payload.costUsd,
+        });
+      });
       const offBus = await listen<BusEvent>("bus-event", ({ payload }) => {
         const st = useStore.getState();
         switch (payload.kind) {
@@ -67,9 +79,10 @@ export default function App() {
       if (disposed) {
         offOutput();
         offStatus();
+        offUsage();
         offBus();
       } else {
-        unlisteners.push(offOutput, offStatus, offBus);
+        unlisteners.push(offOutput, offStatus, offUsage, offBus);
       }
     };
     void register();

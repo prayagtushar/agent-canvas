@@ -82,8 +82,26 @@ MCP tools: `list_peers`, `get_peer_context`, `list_canvas`, `message_peer`,
 `remember`, `recall`, `forget`, `get_node_status`, `wait_for_nodes`, `ask_user`.
 An agent only sees peers joined to it by an edge.
 
+## Harness output
+
+`classify_and_push` in `spawn.rs` turns one CLI line into a transcript line.
+Claude Code speaks stream-json, so `tool_use` items become `> Read(path)` lines
+and the `result` message carries `usage` and `total_cost_usd`, which the Bus
+accumulates per node. Everything else is plain text.
+
+`bus::strip_ansi` runs on every line before it reaches the canvas. Agent CLIs
+colour their output and redraw spinners with escape codes, and a carriage
+return means "redraw this line", so only the last segment survives. Without
+this the canvas fills with `[32m` noise.
+
 ## Gotchas
 
+- The MCP bridge must surface Bus rejections as tool errors. `bus_http` returns
+  the HTTP status with the body, and any 4xx becomes `isError`. Before that,
+  an agent messaging a node it was not connected to was told it succeeded.
+- Tools must be added in two places in `mcp.rs`: the `call_tool` dispatch and
+  the `tools()` list. Missing the second means agents can never discover the
+  tool. `tests/mcp_bridge.rs` asserts the list.
 - The Bus owns the peer graph. The canvas asks it to connect and renders what
   it emits back, never the reverse.
 - `claim_task` is exclusive. It used to let any agent take a task another agent

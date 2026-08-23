@@ -15,6 +15,13 @@ pub struct NodeInfo {
     pub status: String,
     pub output_tail: Vec<String>,
     pub unread: u32,
+    /// Cumulative usage reported by the harness, when it reports any.
+    #[serde(default)]
+    pub tokens_in: u64,
+    #[serde(default)]
+    pub tokens_out: u64,
+    #[serde(default)]
+    pub cost_usd: f64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -77,6 +84,70 @@ pub struct BusShared {
 /// costs cents, not hundreds of dollars.
 pub const DEFAULT_MSG_CAP: u32 = 200;
 
+/// Remove terminal control sequences. Agent CLIs colour their output and
+/// redraw spinners with escape codes; pasted into a plain <pre> those show up
+/// as `[32m` noise, so they are stripped before the canvas ever sees them.
+pub fn strip_ansi(input: &str) -> String {
+    let bytes = input.as_bytes();
+    let mut out = String::with_capacity(input.len());
+    let mut i = 0;
+    while i < bytes.len() {
+        if bytes[i] == 0x1b {
+            match bytes.get(i + 1) {
+                // CSI: ESC [ ... final byte in @..~
+                Some(b'[') => {
+                    i += 2;
+                    while i < bytes.len() && !(0x40..=0x7e).contains(&bytes[i]) {
+                        i += 1;
+                    }
+                    i += 1;
+                }
+                // OSC: ESC ] ... BEL or ESC \
+                Some(b']') => {
+                    i += 2;
+                    while i < bytes.len() {
+                        if bytes[i] == 0x07 {
+                            i += 1;
+                            break;
+                        }
+                        if bytes[i] == 0x1b && bytes.get(i + 1) == Some(&b'\\') {
+                            i += 2;
+                            break;
+                        }
+                        i += 1;
+                    }
+                }
+                // two-byte escapes
+                Some(_) => i += 2,
+                None => i += 1,
+            }
+        } else {
+            // carriage returns are spinner redraws; keep the last segment only
+            if bytes[i] == b'\r' {
+                out.clear();
+                i += 1;
+                continue;
+            }
+            let ch_len = utf8_len(bytes[i]);
+            if let Ok(ch) = std::str::from_utf8(&bytes[i..(i + ch_len).min(bytes.len())]) {
+                out.push_str(ch);
+            }
+            i += ch_len;
+        }
+    }
+    out
+}
+
+fn utf8_len(b: u8) -> usize {
+    match b {
+        0x00..=0x7f => 1,
+        0xc0..=0xdf => 2,
+        0xe0..=0xef => 3,
+        0xf0..=0xf7 => 4,
+        _ => 1,
+    }
+}
+
 pub fn now_ms() -> u64 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -133,7 +204,26 @@ impl BusShared {
         );
     }
 
+    /// Record usage a harness reported for one turn.
+    pub fn add_usage(&self, node_id: &str, tin: u64, tout: u64, cost: f64) {
+        if let Some(n) = self.nodes.lock().get_mut(node_id) {
+            n.tokens_in += tin;
+            n.tokens_out += tout;
+            n.cost_usd += cost;
+        }
+        self.emit(
+            "agent-usage",
+            serde_json::json!({
+                "nodeId": node_id,
+                "tokensIn": tin,
+                "tokensOut": tout,
+                "costUsd": cost,
+            }),
+        );
+    }
+
     pub fn push_output(&self, node_id: &str, chunk: &str) {
+        let chunk = &strip_ansi(chunk);
         for line in chunk.lines() {
             if line.trim().is_empty() {
                 continue;

@@ -5,6 +5,7 @@ import {
   type Edge,
   type NodeChange,
   type EdgeChange,
+  type ReactFlowInstance,
 } from "@xyflow/react";
 import { api } from "./api";
 import type {
@@ -13,6 +14,7 @@ import type {
   HarnessInfo,
   CommState,
   MemoryEntry,
+  Usage,
   NodeInfo,
   Task,
   Theme,
@@ -46,6 +48,9 @@ interface StoreState {
   useWorktrees: boolean;
   memory: MemoryEntry[];
   comm: CommState;
+  usage: Record<string, Usage>;
+  /** Set on canvas init so anything can frame the view. */
+  flow: ReactFlowInstance<CanvasNode, Edge> | null;
 
   onNodesChange: (changes: NodeChange<CanvasNode>[]) => void;
   onEdgesChange: (changes: EdgeChange[]) => void;
@@ -82,6 +87,10 @@ interface StoreState {
   setUseWorktrees: (v: boolean) => void;
   setMemory: (m: MemoryEntry[]) => void;
   setComm: (c: CommState) => void;
+  addUsage: (nodeId: string, u: Usage) => void;
+  setFlow: (f: ReactFlowInstance<CanvasNode, Edge>) => void;
+  frameAll: () => void;
+  promptAll: (text: string) => number;
   refreshComm: () => Promise<void>;
   addMemoryNode: () => void;
   refreshMemory: () => Promise<void>;
@@ -122,6 +131,8 @@ export const useStore = create<StoreState>()((set, get) => ({
   useWorktrees: localStorage.getItem("ac.useWorktrees") === "1",
   memory: [],
   comm: { autoComm: true, sent: 0, cap: 200 },
+  usage: {},
+  flow: null,
 
   onNodesChange: (changes) =>
     set((s) => ({ nodes: applyNodeChanges(changes, s.nodes) })),
@@ -214,6 +225,7 @@ export const useStore = create<StoreState>()((set, get) => ({
       }
       const id = get().addAgentCanvasNode(info);
       if (worktree) updateNodeData(id, { worktree });
+      get().frameAll();
       return info.id;
     } catch (e) {
       get().pushToast("err", `${harness} did not start — ${String(e)}`);
@@ -322,7 +334,44 @@ export const useStore = create<StoreState>()((set, get) => ({
 
   setMemory: (memory) => set({ memory }),
 
+  setFlow: (flow) => set({ flow }),
+
+  /** Bring every node into view. Called after launching so a new agent is
+   *  never dropped off-screen or under the toolbar. */
+  frameAll: () => {
+    const flow = get().flow;
+    if (!flow) return;
+    setTimeout(() => flow.fitView({ duration: 320, padding: 0.18, maxZoom: 1 }), 60);
+  },
+
+  /** Send one prompt to every idle agent. Returns how many got it. */
+  promptAll: (text) => {
+    const { nodes, statuses } = get();
+    const targets = nodes
+      .filter((n): n is import("./types").AgentFlowNode => n.type === "agent")
+      .filter((n) => statuses[n.data.nodeId] !== "running");
+    targets.forEach((n) =>
+      api.sendPrompt(n.data.nodeId, text).catch(() => undefined)
+    );
+    return targets.length;
+  },
+
   setComm: (comm) => set({ comm }),
+
+  addUsage: (nodeId, u) =>
+    set((s) => {
+      const prev = s.usage[nodeId] ?? { tokensIn: 0, tokensOut: 0, costUsd: 0 };
+      return {
+        usage: {
+          ...s.usage,
+          [nodeId]: {
+            tokensIn: prev.tokensIn + u.tokensIn,
+            tokensOut: prev.tokensOut + u.tokensOut,
+            costUsd: prev.costUsd + u.costUsd,
+          },
+        },
+      };
+    }),
 
   refreshComm: async () => {
     try {

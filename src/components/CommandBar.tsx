@@ -8,6 +8,7 @@ const SUGGESTIONS = [
   "Try “add a gemini agent named Juno”",
   "Try “connect them”",
   "Try “note: check the migration before merging”",
+  "Try “all: run the tests and report back”",
   "Try “stop”",
 ];
 
@@ -33,6 +34,7 @@ export default function CommandBar() {
   const selectedNodeId = useStore((s) => s.selectedNodeId);
   const statuses = useStore((s) => s.statuses);
   const pushToast = useStore((s) => s.pushToast);
+  const promptAll = useStore((s) => s.promptAll);
 
   useEffect(() => {
     const t = setInterval(() => setSugIdx((i) => (i + 1) % SUGGESTIONS.length), 4600);
@@ -105,6 +107,14 @@ export default function CommandBar() {
     const raw = text.trim();
     if (!raw) return;
     const lower = raw.toLowerCase();
+
+    // "all: <prompt>" or "everyone: <prompt>" fans out to every idle agent
+    const broadcast = raw.match(/^(?:all|everyone|broadcast)\s*[:,]?\s+(.+)$/i)?.[1];
+    if (broadcast) {
+      const n = promptAll(broadcast);
+      say(n ? `Sent to ${n} agent${n === 1 ? "" : "s"}.` : "No idle agents to send to.");
+      return;
+    }
 
     if (/^note\b/i.test(lower)) {
       addNote(raw.replace(/^note\b[:\s]*/i, ""));

@@ -184,7 +184,19 @@ fn call_tool(
         ),
         other => return Err(format!("unknown tool: {other}")),
     };
-    bus_http(port, token, verb, &path, body.as_ref()).ok_or_else(|| "bus unreachable".to_string())
+    match bus_http(port, token, verb, &path, body.as_ref()) {
+        // The Bus refuses plenty of things on purpose: messaging a node you
+        // are not connected to, claiming a task someone else owns, exceeding
+        // the message cap. Those come back as 4xx and must reach the agent as
+        // tool errors, not as a successful result it will act on.
+        Some((status, body)) if status < 400 => Ok(body),
+        Some((status, body)) => Err(body
+            .get("error")
+            .and_then(Value::as_str)
+            .map(str::to_string)
+            .unwrap_or_else(|| format!("bus returned {status}"))),
+        None => Err("bus unreachable".to_string()),
+    }
 }
 
 /// Minimal percent-encoding for the few user strings that reach a URL.
@@ -201,7 +213,14 @@ fn urlencode(s: &str) -> String {
     out
 }
 
-fn bus_http(port: u16, token: &str, verb: &str, path: &str, body: Option<&Value>) -> Option<Value> {
+/// Returns the HTTP status alongside the decoded JSON body.
+fn bus_http(
+    port: u16,
+    token: &str,
+    verb: &str,
+    path: &str,
+    body: Option<&Value>,
+) -> Option<(u16, Value)> {
     let mut stream = TcpStream::connect(("127.0.0.1", port)).ok()?;
     stream
         .set_read_timeout(Some(Duration::from_secs(180)))
@@ -222,13 +241,19 @@ fn bus_http(port: u16, token: &str, verb: &str, path: &str, body: Option<&Value>
     stream.read_to_end(&mut raw).ok()?;
     let sep = raw.windows(4).position(|w| w == b"\r\n\r\n")?;
     let head = String::from_utf8_lossy(&raw[..sep]).to_ascii_lowercase();
+    let status = head
+        .split_whitespace()
+        .nth(1)
+        .and_then(|c| c.parse::<u16>().ok())
+        .unwrap_or(0);
     let body_bytes = &raw[sep + 4..];
     let final_bytes: Cow<[u8]> = if head.contains("transfer-encoding") && head.contains("chunked") {
         Cow::Owned(dechunk(body_bytes)?)
     } else {
         Cow::Borrowed(body_bytes)
     };
-    serde_json::from_slice(&final_bytes).ok()
+    let value = serde_json::from_slice(&final_bytes).unwrap_or(Value::Null);
+    Some((status, value))
 }
 
 fn dechunk(body: &[u8]) -> Option<Vec<u8>> {
@@ -365,6 +390,33 @@ fn tools() -> Vec<Value> {
             "name": "list_canvas",
             "description": "List every node and edge on the canvas.",
             "inputSchema": schema(json!({}), &[]),
+        }),
+        json!({
+            "name": "remember",
+            "description": "Write a fact into the memory every agent on this canvas shares. Use a short stable key; writing the same key again replaces it.",
+            "inputSchema": schema(
+                json!({
+                    "key": { "type": "string", "description": "Short stable identifier, e.g. db-migration-plan" },
+                    "value": { "type": "string", "description": "The fact to store" },
+                }),
+                &["key", "value"],
+            ),
+        }),
+        json!({
+            "name": "recall",
+            "description": "Read the shared canvas memory, newest first. Omit query to get everything.",
+            "inputSchema": schema(
+                json!({ "query": { "type": "string", "description": "Optional filter over keys and values" } }),
+                &[],
+            ),
+        }),
+        json!({
+            "name": "forget",
+            "description": "Remove one fact from the shared canvas memory.",
+            "inputSchema": schema(
+                json!({ "key": { "type": "string", "description": "Key to remove" } }),
+                &["key"],
+            ),
         }),
     ]
 }

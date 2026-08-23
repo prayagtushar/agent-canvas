@@ -3,6 +3,7 @@ import { useReactFlow } from "@xyflow/react";
 import { open } from "@tauri-apps/plugin-dialog";
 import { api } from "../api";
 import { useStore } from "../store";
+import { THEMES } from "../types";
 import type { AgentFlowNode } from "../types";
 
 function Icon({ d, size = 13 }: { d: string; size?: number }) {
@@ -165,7 +166,18 @@ export default function Toolbar() {
                 setMenu(null);
               }}
             >
-              Fit everything on screen
+              <span>Fit everything on screen</span>
+            </button>
+            <button
+              className="menu-item"
+              onClick={() => {
+                setMenu(null);
+                document.querySelector<HTMLInputElement>(".cmd-input")?.focus();
+                pushToast("ok", "Type “all: …” to send one prompt to every agent.");
+              }}
+            >
+              <span>Send a prompt to every agent</span>
+              <span className="muted small">all:</span>
             </button>
             <div className="menu-sep" />
             <button
@@ -273,12 +285,17 @@ export default function Toolbar() {
             </button>
             <div className="menu-sep" />
             <div className="menu-head">Theme</div>
-            {(["midnight", "slate", "ink", "aurora"] as const).map((t) => (
-              <button key={t} className="menu-item" onClick={() => setTheme(t)}>
-                <span style={{ textTransform: "capitalize" }}>{t}</span>
-                {theme === t && <span className="tick">✓</span>}
-              </button>
-            ))}
+            <div className="theme-list nowheel">
+              {THEMES.map((t) => (
+                <button key={t.id} className="menu-item" onClick={() => setTheme(t.id)}>
+                  <span className="theme-name">
+                    <span className="theme-swatch" style={{ background: t.swatch }} />
+                    {t.label}
+                  </span>
+                  {theme === t.id && <span className="tick">✓</span>}
+                </button>
+              ))}
+            </div>
           </div>
         )}
       </div>

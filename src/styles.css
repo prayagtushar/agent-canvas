@@ -642,6 +642,50 @@ body {
   cursor: text;
 }
 
+/* ---------- transcript lines ---------- */
+
+.ln {
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.ln-tool {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  color: var(--dim);
+}
+
+.ln-caret {
+  color: var(--wire);
+  flex: none;
+}
+
+.ln-tool-name {
+  color: #8ab4ff;
+  font-weight: 500;
+  flex: none;
+}
+
+.ln-tool-arg {
+  color: var(--faint);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ln-meta {
+  color: var(--faint);
+}
+
+.ln-peer {
+  color: #d8b4fe;
+}
+
+.usage {
+  color: var(--dim);
+}
+
 .twin-body .cursor-line::after {
   content: "▋";
   color: var(--live);
@@ -1341,42 +1385,131 @@ body {
 }
 
 /* ---------- themes ----------
-   Each theme only re-tints the scrim over the wallpaper and moves the
-   accent. The chrome and terminal surfaces stay put so agent output keeps
-   the same contrast in every theme. */
+   A theme sets the terminal surfaces and the accent, not just the scrim, so
+   switching one actually changes what you spend the day reading. Palettes are
+   the published values from each project. */
 
 .shell[data-theme="midnight"] {
-  --scrim-a: 10, 16, 32;
-  --scrim-b: 7, 10, 22;
-  --scrim-c: 3, 5, 12;
+  --scrim: 10, 16, 32;
+  --win-bg: #0d1015;
+  --win-head: #171b23;
+  --term-bg: #090b0f;
+  --txt: #eceef2;
+  --dim: #949cab;
+  --wire: #3d8bfd;
+  --live: #2fd45e;
 }
 
-.shell[data-theme="slate"] {
-  --scrim-a: 22, 24, 28;
-  --scrim-b: 16, 18, 21;
-  --scrim-c: 9, 10, 12;
+.shell[data-theme="tokyo-night"] {
+  --scrim: 26, 27, 38;
+  --win-bg: #1a1b26;
+  --win-head: #24283b;
+  --term-bg: #16161e;
+  --txt: #c0caf5;
+  --dim: #787c99;
+  --wire: #7aa2f7;
+  --live: #9ece6a;
+}
+
+.shell[data-theme="dracula"] {
+  --scrim: 40, 42, 54;
+  --win-bg: #282a36;
+  --win-head: #343746;
+  --term-bg: #21222c;
+  --txt: #f8f8f2;
+  --dim: #8b8fa3;
+  --wire: #bd93f9;
+  --live: #50fa7b;
+}
+
+.shell[data-theme="nord"] {
+  --scrim: 46, 52, 64;
+  --win-bg: #2e3440;
+  --win-head: #3b4252;
+  --term-bg: #272c36;
+  --txt: #eceff4;
+  --dim: #8f9bb3;
+  --wire: #88c0d0;
+  --live: #a3be8c;
+}
+
+.shell[data-theme="catppuccin"] {
+  --scrim: 30, 30, 46;
+  --win-bg: #1e1e2e;
+  --win-head: #282839;
+  --term-bg: #181825;
+  --txt: #cdd6f4;
+  --dim: #8b90a8;
+  --wire: #89b4fa;
+  --live: #a6e3a1;
+}
+
+.shell[data-theme="gruvbox"] {
+  --scrim: 40, 40, 40;
+  --win-bg: #282828;
+  --win-head: #32302f;
+  --term-bg: #1d2021;
+  --txt: #ebdbb2;
+  --dim: #a89984;
+  --wire: #83a598;
+  --live: #b8bb26;
+}
+
+.shell[data-theme="one-dark"] {
+  --scrim: 40, 44, 52;
+  --win-bg: #282c34;
+  --win-head: #333842;
+  --term-bg: #21252b;
+  --txt: #abb2bf;
+  --dim: #7f848e;
+  --wire: #61afef;
+  --live: #98c379;
+}
+
+.shell[data-theme="rose-pine"] {
+  --scrim: 25, 23, 36;
+  --win-bg: #191724;
+  --win-head: #1f1d2e;
+  --term-bg: #14121f;
+  --txt: #e0def4;
+  --dim: #908caa;
+  --wire: #c4a7e7;
+  --live: #9ccfd8;
+}
+
+.shell[data-theme="solarized"] {
+  --scrim: 0, 43, 54;
+  --win-bg: #002b36;
+  --win-head: #073642;
+  --term-bg: #00212b;
+  --txt: #eee8d5;
+  --dim: #93a1a1;
+  --wire: #268bd2;
+  --live: #859900;
 }
 
 .shell[data-theme="ink"] {
-  --scrim-a: 6, 6, 7;
-  --scrim-b: 3, 3, 4;
-  --scrim-c: 0, 0, 0;
+  --scrim: 6, 6, 7;
+  --win-bg: #0b0b0d;
+  --win-head: #141417;
+  --term-bg: #050506;
+  --txt: #ededed;
+  --dim: #8d8d8d;
+  --wire: #6e8cff;
+  --live: #3ddc84;
 }
 
-.shell[data-theme="aurora"] {
-  --scrim-a: 8, 28, 34;
-  --scrim-b: 10, 14, 34;
-  --scrim-c: 4, 6, 16;
-  --wire: #35c8b0;
-  --sel: #35c8b0;
+/* selection colour follows the accent */
+.shell {
+  --sel: var(--wire);
 }
 
 .canvas-wrap::before {
   background: linear-gradient(
     168deg,
-    rgba(var(--scrim-a, 10, 16, 32), calc(var(--tint) * 0.82)),
-    rgba(var(--scrim-b, 7, 10, 22), var(--tint)) 58%,
-    rgba(var(--scrim-c, 3, 5, 12), calc(var(--tint) * 1.15))
+    rgba(var(--scrim, 10, 16, 32), calc(var(--tint) * 0.8)),
+    rgba(var(--scrim, 10, 16, 32), var(--tint)) 58%,
+    rgba(var(--scrim, 10, 16, 32), calc(var(--tint) * 1.25))
   );
 }
 
@@ -1657,4 +1790,25 @@ body {
   opacity: 0;
   pointer-events: none;
   transition: opacity 0.18s ease;
+}
+
+/* ---------- theme picker ---------- */
+
+.theme-list {
+  max-height: 232px;
+  overflow-y: auto;
+}
+
+.theme-name {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.theme-swatch {
+  width: 11px;
+  height: 11px;
+  border-radius: 3px;
+  flex: none;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.14);
 }
