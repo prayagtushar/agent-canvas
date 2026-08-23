@@ -111,6 +111,8 @@ export type AgentData = {
   status: string;
   /** Set when this agent runs in its own git worktree. */
   worktree?: string;
+  /** A stand-in shown while the process starts. Has no Bus node behind it. */
+  pending?: boolean;
 };
 
 export type TaskBoardData = Record<string, never>;

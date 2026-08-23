@@ -36,6 +36,17 @@ page is transparent, so it cannot blur the desktop. All wallpaper blur comes
 from the native vibrancy layer. A plain translucent fill over it already reads
 as frosted glass. Use `opacity` to dim.
 
+**`frameAll` computes its own viewport instead of calling `fitView`.** The
+canvas fills the window and every piece of chrome floats over it, so a fit that
+centres in the whole window parks the top agent under the title bar and the
+bottom one under the command bar. The insets live in `CHROME` in `store.ts`;
+adjust them there if the chrome changes height. Two things bite here:
+`getNodesBounds` reads `node.measured`, which xyflow keeps on its internal
+nodes and never writes back to the ones `getNodes()` returns, so it reports a
+zero-size box — `nodesBox` measures the rendered elements instead. And a
+viewport animation is driven by `requestAnimationFrame`, which a hidden window
+does not run, so the duration drops to zero when `document.hidden`.
+
 **Floating chrome lives in the shell, not inside `<ReactFlow>`.** Toolbar and
 CommandBar render in `App.tsx` next to TitleBar and Rail, wrapped in
 `ReactFlowProvider` so `useReactFlow()` still resolves. This keeps app chrome
@@ -86,6 +97,13 @@ Tauri commands: `add_agent {label,harness,cwd,prompt}`, `send_prompt {id,text}`,
 `get_bus_info`, `add_edge {a,b}`, `remove_edge {a,b}`, `default_workspace_root`,
 `is_git_repo {path}`, `create_worktree {repo,name}`, `remove_worktree
 {repo,path}`, `list_memory`, `remember {key,value}`, `forget_memory {key}`.
+
+Launching is optimistic. `launchAgent` puts a stand-in node on the canvas
+before it touches git or spawns anything, because creating a worktree and
+starting a CLI takes a second or two and the click would otherwise do nothing
+visible. The stand-in carries `data.pending`, has no Bus node behind it, and is
+excluded from the saved workspace; anything that reaches the backend has to
+check for it.
 
 `list_harnesses` returns `{name, label, available, bus}`. `bus` is false for
 CLIs with no drivable MCP support; they still run as terminals.

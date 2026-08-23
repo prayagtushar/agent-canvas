@@ -26,7 +26,15 @@ export const EDGE_STYLE = { stroke: "var(--wire)", strokeWidth: 1.7 };
 /** Characters of agent output kept per node. Past this the front is dropped. */
 const SCROLLBACK = 24000;
 
+/** Pixels of each window edge covered by floating chrome: title bar and comm
+   chips on top, the rail on the left, the toolbar and command bar below. */
+const CHROME = { top: 76, right: 26, bottom: 112, left: 62 };
+
+/** Breathing room between the chrome and the outermost node. */
+const GUTTER = 22;
+
 let toastSeq = 0;
+let pendingSeq = 0;
 
 /** Must match the `.toast.leaving` animation in styles.css. */
 const TOAST_EXIT_MS = 200;
@@ -67,7 +75,7 @@ interface StoreState {
   setNodes: (nodes: CanvasNode[] | ((n: CanvasNode[]) => CanvasNode[])) => void;
   setEdges: (edges: Edge[] | ((e: Edge[]) => Edge[])) => void;
 
-  addAgentCanvasNode: (info: NodeInfo) => string;
+  addAgentCanvasNode: (info: NodeInfo, at?: { x: number; y: number }) => string;
   addNote: (text?: string) => void;
   addTaskBoard: () => void;
   launchAgent: (harness: string, label?: string, prompt?: string) => Promise<string | null>;
@@ -111,6 +119,40 @@ interface StoreState {
 
   saveWorkspace: (silent?: boolean) => Promise<void>;
   restoreWorkspace: () => Promise<void>;
+}
+
+/* The box every node occupies, in canvas coordinates. xyflow's own
+   `getNodesBounds` reads `node.measured`, which it keeps on its internal
+   nodes and never writes back to the ones `getNodes()` hands out, so it
+   returns a zero-size box here. The rendered elements know their real size:
+   `offsetWidth` is the layout size, before the canvas transform scales it. */
+function nodesBox(nodes: CanvasNode[]) {
+  let minX = Infinity;
+  let minY = Infinity;
+  let maxX = -Infinity;
+  let maxY = -Infinity;
+  for (const n of nodes) {
+    const el = document.querySelector<HTMLElement>(
+      `.react-flow__node[data-id="${CSS.escape(n.id)}"]`
+    );
+    const w = el?.offsetWidth || Number(n.style?.width) || 240;
+    const h = el?.offsetHeight || Number(n.style?.height) || 160;
+    minX = Math.min(minX, n.position.x);
+    minY = Math.min(minY, n.position.y);
+    maxX = Math.max(maxX, n.position.x + w);
+    maxY = Math.max(maxY, n.position.y + h);
+  }
+  if (!Number.isFinite(minX)) return null;
+  return { x: minX, y: minY, width: maxX - minX, height: maxY - minY };
+}
+
+/* Where the next agent window goes: two columns, stepped slightly right on
+   each new row so a deep canvas still reads as a stack of pairs. */
+function agentSlot(nodes: CanvasNode[]): { x: number; y: number } {
+  const count = nodes.filter((n) => n.type === "agent").length;
+  const col = count % 2;
+  const row = Math.floor(count / 2);
+  return { x: 80 + col * 560 + row * 40, y: 70 + row * 392 };
 }
 
 /* Right edge of everything currently placed, so new items land beside the
@@ -160,15 +202,12 @@ export const useStore = create<StoreState>()((set, get) => ({
   setEdges: (edges) =>
     set((s) => ({ edges: typeof edges === "function" ? edges(s.edges) : edges })),
 
-  addAgentCanvasNode: (info) => {
-    const count = get().nodes.filter((n) => n.type === "agent").length;
+  addAgentCanvasNode: (info, at) => {
     const id = info.id;
-    const col = count % 2;
-    const row = Math.floor(count / 2);
     const node: CanvasNode = {
       id,
       type: "agent",
-      position: { x: 80 + col * 560 + row * 40, y: 70 + row * 392 },
+      position: at ?? agentSlot(get().nodes),
       style: { width: 512, height: 336 },
       data: {
         nodeId: info.id,
@@ -216,6 +255,35 @@ export const useStore = create<StoreState>()((set, get) => ({
       return null;
     }
     const name = label || harness;
+
+    // Put a stand-in on the canvas before doing any of the slow work. Adding a
+    // worktree runs git and starting an agent spawns a process, so without
+    // this the click closes a menu and nothing happens for a second or two.
+    const slot = agentSlot(nodes);
+    const holder = `pending-${++pendingSeq}`;
+    set((s) => ({
+      nodes: [
+        ...s.nodes,
+        {
+          id: holder,
+          type: "agent",
+          position: slot,
+          style: { width: 512, height: 336 },
+          data: {
+            nodeId: holder,
+            label: name,
+            harness,
+            cwd: workspaceRoot,
+            status: "starting",
+            pending: true,
+          },
+        } as CanvasNode,
+      ],
+    }));
+    get().frameAll();
+    const dropHolder = () =>
+      set((s) => ({ nodes: s.nodes.filter((n) => n.id !== holder) }));
+
     let cwd = workspaceRoot;
     let worktree: string | undefined;
 
@@ -226,6 +294,7 @@ export const useStore = create<StoreState>()((set, get) => ({
         cwd = await api.createWorktree(workspaceRoot, `${name}-${seq}`);
         worktree = cwd;
       } catch (e) {
+        dropHolder();
         get().pushToast("err", `Worktree not created — ${String(e)}`);
         return null;
       }
@@ -234,14 +303,16 @@ export const useStore = create<StoreState>()((set, get) => ({
     try {
       const info = await api.addAgent({ label: name, harness, cwd, prompt });
       if (!info) {
+        dropHolder();
         get().pushToast("err", `Could not start ${harness}.`);
         return null;
       }
-      const id = get().addAgentCanvasNode(info);
+      dropHolder();
+      const id = get().addAgentCanvasNode(info, slot);
       if (worktree) updateNodeData(id, { worktree });
-      get().frameAll();
       return info.id;
     } catch (e) {
+      dropHolder();
       get().pushToast("err", `${harness} did not start — ${String(e)}`);
       return null;
     }
@@ -249,7 +320,9 @@ export const useStore = create<StoreState>()((set, get) => ({
 
   removeNode: (id) => {
     const node = get().nodes.find((n) => n.id === id);
-    if (node?.type === "agent") void api.killAgent(node.data.nodeId).catch(() => undefined);
+    if (node?.type === "agent" && !node.data.pending) {
+      void api.killAgent(node.data.nodeId).catch(() => undefined);
+    }
     set((s) => ({
       nodes: s.nodes.filter((n) => n.id !== id),
       edges: s.edges.filter((e) => e.source !== id && e.target !== id),
@@ -381,12 +454,40 @@ export const useStore = create<StoreState>()((set, get) => ({
 
   setFlow: (flow) => set({ flow }),
 
-  /** Bring every node into view. Called after launching so a new agent is
-   *  never dropped off-screen or under the toolbar. */
+  /** Bring every node into view, inside the chrome rather than under it.
+   *  The canvas fills the window and the title bar, rail and command bar float
+   *  on top of it, so `fitView` centres in the whole window and parks the top
+   *  agent under the title bar. This centres in what is actually visible. */
   frameAll: () => {
     const flow = get().flow;
     if (!flow) return;
-    setTimeout(() => flow.fitView({ duration: 320, padding: 0.18, maxZoom: 1 }), 60);
+    // A beat, so nodes added in the same tick are in the DOM to be measured.
+    setTimeout(() => {
+      const pane = document.querySelector(".react-flow");
+      const box = nodesBox(get().nodes);
+      if (!pane || !box || box.width === 0 || box.height === 0) return;
+
+      const { width, height } = pane.getBoundingClientRect();
+
+      const free = {
+        x: CHROME.left + GUTTER,
+        y: CHROME.top + GUTTER,
+        w: Math.max(160, width - CHROME.left - CHROME.right - GUTTER * 2),
+        h: Math.max(160, height - CHROME.top - CHROME.bottom - GUTTER * 2),
+      };
+      const zoom = Math.min(free.w / box.width, free.h / box.height, 1);
+      void flow.setViewport(
+        {
+          zoom,
+          x: free.x + (free.w - box.width * zoom) / 2 - box.x * zoom,
+          y: free.y + (free.h - box.height * zoom) / 2 - box.y * zoom,
+        },
+        // The animation is driven by requestAnimationFrame, which a hidden
+        // window does not run: an agent launched while the app is in the
+        // background would leave the viewport wherever it was. Jump instead.
+        { duration: document.hidden ? 0 : 320 }
+      );
+    }, 60);
   },
 
   /** Send one prompt to every idle agent. Returns how many got it. */
@@ -487,13 +588,15 @@ export const useStore = create<StoreState>()((set, get) => ({
     const json = JSON.stringify({
       version: 1,
       tint,
-      nodes: nodes.map((n) => ({
-        id: n.id,
-        type: n.type,
-        position: n.position,
-        data: n.data,
-        style: n.style ?? null,
-      })),
+      nodes: nodes
+        .filter((n) => !(n.type === "agent" && n.data.pending))
+        .map((n) => ({
+          id: n.id,
+          type: n.type,
+          position: n.position,
+          data: n.data,
+          style: n.style ?? null,
+        })),
       edges: edges.map((e) => ({ source: e.source, target: e.target })),
     });
     try {

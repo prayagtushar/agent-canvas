@@ -152,6 +152,34 @@ function AgentNodeInner({ id, data, selected }: NodeProps<AgentFlowNode>) {
     );
   };
 
+  // A stand-in for the seconds between the click and a live process. It has
+  // no Bus node behind it, so nothing here may call the backend.
+  if (data.pending) {
+    return (
+      <div className="agent-window is-running is-pending">
+        <div className="twin-head">
+          <span className="spinner" />
+          <span className="twin-name">{data.label}</span>
+          <span className={`harness-tag ${TAG_CLASS[data.harness] ?? ""}`}>
+            {HARNESS_LABEL[data.harness] ?? data.harness}
+          </span>
+        </div>
+        <pre className="twin-body">
+          <span className="muted">Starting {HARNESS_LABEL[data.harness] ?? data.harness}…</span>
+        </pre>
+        <div className="twin-foot">
+          <div className="meta-row">
+            <span>⇡ {data.harness}</span>
+            <span className="sep">|</span>
+            <span>starting</span>
+            <span className="sep">|</span>
+            <span>{dirName}</span>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div
       className={`agent-window ${selected ? "selected" : ""} ${hit ? "hit" : ""} ${

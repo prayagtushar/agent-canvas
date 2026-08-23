@@ -617,6 +617,13 @@ body {
   }
 }
 
+/* The stand-in shown while a process starts. Dimmed so it reads as not yet
+   real. It stays draggable and right-clickable on purpose: if a CLI hangs on
+   startup, the operator still needs a way to clear it off the canvas. */
+.agent-window.is-pending {
+  opacity: 0.72;
+}
+
 /* Everything the canvas holds arrives rather than appears. `scale` is used as
    its own property so it composes with the sticky note's `transform: rotate`
    instead of cancelling it. */
@@ -1085,11 +1092,31 @@ body {
   overflow-y: auto;
 }
 
+.pc-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--live);
+  flex: none;
+}
+
 .task-item {
   padding: 8px 9px;
   border: 1px solid var(--line);
   border-radius: 8px;
   background: rgba(255, 255, 255, 0.028);
+  transition: opacity 0.25s ease, border-color 0.25s ease;
+  animation: card-in 0.26s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* Finished work stays legible but stops competing with what is still open. */
+.task-item.is-done {
+  opacity: 0.62;
+}
+
+.task-item.is-done .task-title-row > span:first-child {
+  text-decoration: line-through;
+  text-decoration-color: var(--faint);
 }
 
 .task-title-row {
@@ -1108,6 +1135,7 @@ body {
   text-transform: uppercase;
   letter-spacing: 0.045em;
   flex: none;
+  animation: badge-pop 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
 .st-todo {
