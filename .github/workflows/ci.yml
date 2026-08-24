@@ -50,24 +50,27 @@ jobs:
       - run: cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings
       # Tauri links WebView2Loader.dll through an import library, so every
       # binary that links this crate needs it alongside at load time. The
-      # build script copies it, but a restored build cache skips build
-      # scripts, so this does it again and says what it found.
+      # build script puts it there, but a restored build cache skips build
+      # scripts — so check, and only fill the gap. `webview2-com-sys` unpacks
+      # one copy per architecture, and the wrong one loads no better than none.
       - name: WebView2 loader beside the test binaries
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
           cargo build --manifest-path src-tauri/Cargo.toml --tests
-          $found = Get-ChildItem -Path src-tauri/target/debug -Recurse -Filter WebView2Loader.dll -ErrorAction SilentlyContinue
-          Write-Host "WebView2Loader.dll copies found: $($found.Count)"
-          $found | ForEach-Object { Write-Host "  $($_.FullName)" }
-          if ($found.Count -gt 0) {
-            Copy-Item $found[0].FullName src-tauri/target/debug/deps/ -Force
-            Copy-Item $found[0].FullName src-tauri/target/debug/ -Force
-            Write-Host "copied into deps/"
+          $target = "src-tauri/target/debug/deps/WebView2Loader.dll"
+          if (Test-Path $target) {
+            Write-Host "already there, left alone"
+          } else {
+            $source = Get-ChildItem -Path src-tauri/target/debug/build -Recurse -Filter WebView2Loader.dll -ErrorAction SilentlyContinue |
+              Where-Object { $_.FullName -like "*\x64\*" } | Select-Object -First 1
+            if ($source) {
+              Copy-Item $source.FullName $target -Force
+              Write-Host "copied from $($source.FullName)"
+            } else {
+              Write-Host "::warning::no x64 WebView2Loader.dll found; the test run may not start"
+            }
           }
-          Write-Host "--- DLLs now beside the test binaries ---"
-          Get-ChildItem src-tauri/target/debug/deps -Filter *.dll -ErrorAction SilentlyContinue |
-            ForEach-Object { Write-Host "  $($_.Name)" }
 
       - run: cargo test --manifest-path src-tauri/Cargo.toml --no-fail-fast
 
