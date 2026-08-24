@@ -96,7 +96,7 @@ jobs:
             These builds are not code-signed, so macOS and Windows will both
             warn you the first time you open the app. The Installing section
             says exactly which warning you will get and how to get past it.
-            Linux ships as an AppImage and a .deb.
+            Linux ships as an AppImage, a .deb and an .rpm.
 
             Agent Canvas runs the agent CLIs you already have installed. It
             does not ship or download any of them.
@@ -108,13 +108,23 @@ jobs:
           args: --target ${{ matrix.target }}
 
       # Manual runs have nowhere to upload to, so keep the bundles here.
-      # The whole bundle directory, rather than tauri-action's artifactPaths:
-      # that output is a JSON array, and joining it inside a GitHub expression
-      # cannot produce the newline `upload-artifact` needs between paths.
+      # The installers by extension rather than the whole bundle directory:
+      # that directory also holds the AppImage staging tree, which made a
+      # Linux artifact 207MB of unpacked libraries nobody wants to download.
+      # And not tauri-action's `artifactPaths` — that output is a JSON array,
+      # and joining it inside a GitHub expression cannot produce the newline
+      # `upload-artifact` needs between paths.
       - if: ${{ !startsWith(github.ref, 'refs/tags/') }}
         uses: actions/upload-artifact@v4
         with:
           name: agent-canvas-${{ matrix.target }}
-          path: src-tauri/target/${{ matrix.target }}/release/bundle/
+          path: |
+            src-tauri/target/${{ matrix.target }}/release/bundle/**/*.dmg
+            src-tauri/target/${{ matrix.target }}/release/bundle/**/*.app.tar.gz
+            src-tauri/target/${{ matrix.target }}/release/bundle/**/*.exe
+            src-tauri/target/${{ matrix.target }}/release/bundle/**/*.msi
+            src-tauri/target/${{ matrix.target }}/release/bundle/**/*.AppImage
+            src-tauri/target/${{ matrix.target }}/release/bundle/**/*.deb
+            src-tauri/target/${{ matrix.target }}/release/bundle/**/*.rpm
           if-no-files-found: error
           retention-days: 7
