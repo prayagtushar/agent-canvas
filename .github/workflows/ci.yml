@@ -52,7 +52,10 @@ jobs:
 
   bundle:
     # Proves the thing users actually download still builds, before a tag
-    # makes that everyone's problem.
+    # makes that everyone's problem. A release-profile build of the whole
+    # Tauri stack is the slowest thing here, so it runs on pushes to main and
+    # leaves pull request feedback quick.
+    if: github.event_name == 'push'
     name: Bundle (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
     strategy:

@@ -15,19 +15,18 @@ guess.
 ## Run it
 
 1. Set the working folder to **this folder** (`examples/two-heads`).
-2. Start the **Review pair** team, then rename the two agents (double-click a
-   name): **Backend** and **Frontend**.
-3. Select **Backend** in the command bar and send:
+2. Start the **Review pair** team from the empty canvas. That gives you two
+   connected agents called Maker and Reviewer.
+3. Pick **Everyone** in the command bar and send this, once:
 
 ```
-Read notes/backend-decisions.md. It is the only copy of these decisions. Your peer is writing the frontend config and cannot see this file. Make sure they end up with the right values.
+Reviewer: read notes/backend-decisions.md. It is the only copy of those decisions and the Maker cannot see it. Answer their questions about it.
+
+Maker: write src/config.js. It must default-export an object with sessionTtlSeconds, sessionHeader, renewPath and errorCodeExample. You do not have those values and must not guess them — the Reviewer does. Ask them, then run `npm test`.
 ```
 
-4. Select **Frontend** and send:
-
-```
-Write src/config.js. It must default-export an object with sessionTtlSeconds, sessionHeader, renewPath and errorCodeExample. You do not have the values and must not guess them — your peer does. Ask them.
-```
+Both agents get the same message and each acts on its own half. Nothing to
+rename, nothing to select.
 
 ## Check it
 

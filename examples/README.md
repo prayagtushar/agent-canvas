@@ -49,8 +49,10 @@ git checkout examples && git clean -fd examples
 
 ## Before you start
 
-Each example's README says which folder to set as the working folder and gives
-the exact prompt to send. Two things are worth knowing:
+Each example is the same three steps: set the working folder, click one team,
+paste one prompt. The example's README has the exact wording.
+
+Two things worth knowing:
 
 - Agents write to the folder you point them at. That is the point, and it is
   why these examples are throwaway directories inside the repo rather than
