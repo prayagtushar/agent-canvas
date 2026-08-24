@@ -48,7 +48,28 @@ jobs:
       - run: npm run build
       - run: cargo fmt --manifest-path src-tauri/Cargo.toml -- --check
       - run: cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings
-      - run: cargo test --manifest-path src-tauri/Cargo.toml
+      # Tauri links WebView2Loader.dll through an import library, so every
+      # binary that links this crate needs it alongside at load time. The
+      # build script copies it, but a restored build cache skips build
+      # scripts, so this does it again and says what it found.
+      - name: WebView2 loader beside the test binaries
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          cargo build --manifest-path src-tauri/Cargo.toml --tests
+          $found = Get-ChildItem -Path src-tauri/target/debug -Recurse -Filter WebView2Loader.dll -ErrorAction SilentlyContinue
+          Write-Host "WebView2Loader.dll copies found: $($found.Count)"
+          $found | ForEach-Object { Write-Host "  $($_.FullName)" }
+          if ($found.Count -gt 0) {
+            Copy-Item $found[0].FullName src-tauri/target/debug/deps/ -Force
+            Copy-Item $found[0].FullName src-tauri/target/debug/ -Force
+            Write-Host "copied into deps/"
+          }
+          Write-Host "--- DLLs now beside the test binaries ---"
+          Get-ChildItem src-tauri/target/debug/deps -Filter *.dll -ErrorAction SilentlyContinue |
+            ForEach-Object { Write-Host "  $($_.Name)" }
+
+      - run: cargo test --manifest-path src-tauri/Cargo.toml --no-fail-fast
 
   bundle:
     # Proves the thing users actually download still builds, before a tag
