@@ -1,0 +1,8 @@
+{
+  "name": "example-build-the-api",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test"
+  }
+}
