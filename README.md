@@ -376,11 +376,22 @@ Two commands, once:
 npm run tauri signer generate -- -w ~/.tauri/agent-canvas.key
 ```
 
-Put the **public** key in `plugins.updater.pubkey` in `src-tauri/tauri.conf.json`,
+Then, in `src-tauri/tauri.conf.json`, set both of these together:
+
+- `plugins.updater.pubkey` to the **public** key it printed
+- `bundle.createUpdaterArtifacts` to `true`
+
 and add the **private** key and its password as the repository secrets
 `TAURI_SIGNING_PRIVATE_KEY` and `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`. The
-release workflow already reads both. Keep the private key: losing it means
-existing installs can never be updated again, only reinstalled.
+release workflow already reads both, and `includeUpdaterJson: true` on the
+`tauri-action` step publishes the manifest the app checks against.
+
+They have to move together. With `createUpdaterArtifacts` on and no key, a
+release builds both installers and then fails trying to sign them — a red
+release with perfectly good bundles inside it. That is why it ships off.
+
+Keep the private key. Losing it means existing installs can never be updated
+again, only reinstalled.
 
 Until then the app says plainly that it cannot check, rather than failing at
 people with a dialog.

@@ -74,10 +74,11 @@ jobs:
       - run: npm run typecheck
       - run: npm run test:web
 
-      # Signing keys for the in-app updater. Without them tauri-action still
-      # builds; the bundles simply carry no update signature, and the app says
-      # so rather than trusting anything. See "Releasing" in the README for
-      # the two commands that create them.
+      # Signing keys for the in-app updater, read only when
+      # `bundle.createUpdaterArtifacts` is on. Leaving that off is the default:
+      # with it on and no key, Tauri builds both installers and *then* fails
+      # trying to sign, which is a red release with working bundles in it.
+      # See "Turning on in-app updates" in the README.
       - uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -99,7 +100,9 @@ jobs:
 
             Agent Canvas runs the agent CLIs you already have installed. It
             does not ship or download any of them.
-          includeUpdaterJson: true
+          # Add `includeUpdaterJson: true` here when you turn on
+          # `bundle.createUpdaterArtifacts`; it publishes the manifest the
+          # app checks against.
           releaseDraft: true
           prerelease: false
           args: --target ${{ matrix.target }}
