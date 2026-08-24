@@ -379,6 +379,16 @@ any zoom instead of resampling a bitmap.
   is why `.titlebar` is padded 84px on the left there and not on Windows.
 - Any `std::process::Command` this app runs goes through `platform::quiet`, or
   it flashes a console window on Windows.
+- The Rust suite runs on macOS only. On Windows every test binary that links
+  Tauri's types aborts at load time with STATUS_ENTRYPOINT_NOT_FOUND — a DLL
+  Tauri imports is missing an export the binary was linked against.
+  `tests/worktrees.rs` is the one binary the linker prunes Tauri out of, and it
+  runs there perfectly, which is what places the problem in what Tauri drags in
+  rather than in this repo. Putting `WebView2Loader.dll` beside the binaries,
+  in `deps/` and in the profile directory, changes nothing. Windows CI compiles
+  the tests instead (`cargo build --tests`), which catches test code that does
+  not build there. Do not spend another afternoon on this without new
+  evidence — the app itself bundles and runs on Windows.
 - Launching an agent reveals it rather than re-framing the canvas. `frameAll`
   shrinks every terminal a little more with each launch and moves the window the
   operator was reading; `revealNode` pans only when the node is off screen and

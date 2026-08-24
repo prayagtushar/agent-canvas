@@ -291,7 +291,10 @@ rather than a public issue.
 npm test
 ```
 
-Runs the frontend suite and then the Rust one.
+Runs the frontend suite and then the Rust one. The frontend suite runs
+anywhere; the Rust one runs on macOS and Linux. On Windows the tests compile
+but cannot start — see the note in AGENTS.md — while the app itself builds and
+runs there.
 
 ```sh
 npm run examples
