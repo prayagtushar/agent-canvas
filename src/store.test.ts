@@ -66,6 +66,18 @@ function info(id: string, label = id): NodeInfo {
 beforeEach(() => {
   useStore.setState(initial, true);
   reset();
+  // `restoreMocks` wipes what the factory above set up, so anything the store
+  // calls and then `.catch`es has to hand back a promise again here. Setting
+  // it per test rather than once also means no test inherits another's stub.
+  vi.mocked(api.killAgent).mockResolvedValue(undefined);
+  vi.mocked(api.sendPrompt).mockResolvedValue(undefined);
+  vi.mocked(api.agentInput).mockResolvedValue(undefined);
+  vi.mocked(api.agentResize).mockResolvedValue(undefined);
+  vi.mocked(api.saveWorkspace).mockResolvedValue(undefined);
+  vi.mocked(api.listTasks).mockResolvedValue([]);
+  vi.mocked(api.addEdge).mockResolvedValue(undefined);
+  vi.mocked(notify.away).mockReturnValue(true);
+  vi.mocked(notify.notify).mockResolvedValue(undefined);
 });
 
 describe("where agent windows land", () => {

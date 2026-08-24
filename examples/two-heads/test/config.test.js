@@ -12,12 +12,12 @@ import assert from "node:assert/strict";
  */
 const config = await import("../src/config.js").catch(() => null);
 
-test("src/config.js exists and exports a config object", () => {
+test("src/config.js exists and default-exports an object", () => {
   assert.ok(config, "src/config.js was never created");
-  assert.equal(typeof config.default ?? typeof config.config, "object");
+  assert.equal(typeof config.default, "object", "it must be the default export");
 });
 
-const c = config?.default ?? config?.config ?? {};
+const c = config?.default ?? {};
 
 test("the session lifetime came from the backend, not from a habit", () => {
   assert.equal(

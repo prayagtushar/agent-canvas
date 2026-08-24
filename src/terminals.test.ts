@@ -23,6 +23,10 @@ function box(): HTMLDivElement {
 
 beforeEach(() => {
   document.body.replaceChildren();
+  // `restoreMocks` wipes what the factory set up, and the registry calls
+  // `.catch` on whatever these return the moment a key is pressed.
+  vi.mocked(api.agentInput).mockResolvedValue(undefined);
+  vi.mocked(api.agentResize).mockResolvedValue(undefined);
 });
 
 describe("output that arrives before a node is on screen", () => {
