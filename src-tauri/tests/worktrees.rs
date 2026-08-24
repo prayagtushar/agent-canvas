@@ -122,3 +122,37 @@ fn diagnostics_report_every_harness_without_hanging() {
         .expect("claude is in the harness table");
     assert_eq!(claude["bus"], true, "claude can be wired to the Bus");
 }
+
+/// An agent's changes have to be readable without leaving the app, and a new
+/// file counts as a change even though `git diff` never mentions it.
+#[test]
+fn a_diff_covers_edits_and_new_files_and_says_when_there_are_neither() {
+    let repo = a_repo("diff");
+
+    let quiet = agent_canvas_lib::worktree::agent_diff(repo.to_string_lossy().to_string())
+        .expect("a clean repo still answers");
+    assert!(quiet.contains("Nothing has changed"), "{quiet}");
+
+    std::fs::write(repo.join("README.md"), "edited by an agent\n").unwrap();
+    std::fs::write(repo.join("brand-new.txt"), "written by an agent\n").unwrap();
+
+    let diff = agent_canvas_lib::worktree::agent_diff(repo.to_string_lossy().to_string())
+        .expect("a dirty repo answers");
+    assert!(
+        diff.contains("brand-new.txt"),
+        "a new file is a change:\n{diff}"
+    );
+    assert!(
+        diff.contains("edited by an agent"),
+        "an edit shows its lines:\n{diff}"
+    );
+}
+
+#[test]
+fn a_folder_outside_a_repository_says_so_rather_than_failing_silently() {
+    let plain = std::env::temp_dir().join(format!("ac-plain-{}", std::process::id()));
+    std::fs::create_dir_all(&plain).unwrap();
+    let err = agent_canvas_lib::worktree::agent_diff(plain.to_string_lossy().to_string())
+        .expect_err("not a repo");
+    assert!(err.contains("not inside a git repository"), "{err}");
+}

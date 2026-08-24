@@ -250,6 +250,21 @@ export default function Toolbar() {
               <span>Start other agents</span>
               <span className={`switch ${comm.hiring ? "on" : ""}`} />
             </button>
+            <button
+              className="menu-item"
+              title="Turns the whole canvas may take before it interrupts everything"
+              onClick={() => {
+                void api
+                  .setTurnCap(comm.turnCap + 120)
+                  .then(() => pushToast("ok", `Turn budget raised to ${comm.turnCap + 120}.`))
+                  .catch((e) => pushToast("err", String(e)));
+              }}
+            >
+              <span>Turn budget</span>
+              <span className="muted small">
+                {comm.turns}/{comm.turnCap} · +120
+              </span>
+            </button>
             <div className="menu-sep" />
             <div className="menu-head">While you are away</div>
             <button

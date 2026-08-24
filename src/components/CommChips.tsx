@@ -6,8 +6,10 @@ import { useStore } from "../store";
 export default function CommChips() {
   const comm = useStore((s) => s.comm);
   const pushToast = useStore((s) => s.pushToast);
+  const setDiagnosticsOpen = useStore((s) => s.setDiagnosticsOpen);
 
   const nearCap = comm.cap > 0 && comm.sent >= comm.cap * 0.8;
+  const budgetNear = comm.turnCap > 0 && comm.turns >= comm.turnCap * 0.8;
   const atCap = comm.sent >= comm.cap;
 
   const toggle = () => {
@@ -40,6 +42,25 @@ export default function CommChips() {
       >
         <span className={`chip-dot ${comm.autoComm ? "live" : ""}`} />
         Auto-comm {comm.autoComm ? "on" : "off"}
+      </button>
+
+      {/* What the session has spent. Turns are exact; the dollar figure only
+          appears when a CLI has actually printed one, because most do not and
+          a made-up number is worse than none. */}
+      <button
+        className={`chip ${budgetNear ? "chip-warn" : ""}`}
+        title={
+          `${comm.turns} turns of a ${comm.turnCap} budget. A turn is an agent going from idle to working, ` +
+          `however it was started.` +
+          (comm.costUsd > 0
+            ? ` Reported spend so far: $${comm.costUsd.toFixed(2)}.`
+            : " No CLI on this canvas reports what it costs, so there is no dollar figure to show.")
+        }
+        onClick={() => setDiagnosticsOpen(true)}
+      >
+        <span className="chip-dot" />
+        {comm.turns}/{comm.turnCap} turns
+        {comm.costUsd > 0 && <b className="chip-cost">${comm.costUsd.toFixed(2)}</b>}
       </button>
 
       <button

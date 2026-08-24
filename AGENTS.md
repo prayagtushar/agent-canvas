@@ -20,6 +20,8 @@ before changing rendering, the Bus, or the harness adapters.
 | `src/teams.ts` | Built-in team templates, and the ones the operator saved |
 | `src/report.ts` | The session report, as a pure function of store state |
 | `src/notify.ts` | Desktop notifications for when the operator is away |
+| `src/updates.ts` | Looking for a newer signed build, and saying so when it cannot |
+| `src-tauri/src/usage.rs` | Reading what a turn cost off an agent's own screen |
 | `src-tauri/src/platform.rs` | The one place that cares which OS this is |
 | `examples/` | Small projects with failing suites, to check the app end to end |
 
@@ -389,6 +391,15 @@ any zoom instead of resampling a bitmap.
   the tests instead (`cargo build --tests`), which catches test code that does
   not build there. Do not spend another afternoon on this without new
   evidence — the app itself bundles and runs on Windows.
+- What a CLI prints about tokens or cost is a **running total**, not the last
+  turn. `observe_usage` therefore replaces rather than adds, and only ever
+  moves a figure up: a total that scrolled off screen must not reset it. Adding
+  screen totals up would climb by the whole session's cost every 600ms.
+- Turns are counted from the idle→running transition in `pty::watch_loop`, not
+  from prompts the canvas sent. That is the only signal that catches a turn the
+  operator started by typing into the terminal themselves.
+- `note_turn` returns true exactly once, on the turn that crosses the budget.
+  Returning true for every turn after would stop the canvas on a loop.
 - Launching an agent reveals it rather than re-framing the canvas. `frameAll`
   shrinks every terminal a little more with each launch and moves the window the
   operator was reading; `revealNode` pans only when the node is off screen and

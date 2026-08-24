@@ -38,9 +38,20 @@ jobs:
             os: windows-latest
             target: x86_64-pc-windows-msvc
             rust-targets: x86_64-pc-windows-msvc
+          - name: Linux (x64)
+            os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            rust-targets: x86_64-unknown-linux-gnu
 
     steps:
       - uses: actions/checkout@v4
+
+      - name: Linux build dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev \
+            librsvg2-dev patchelf libxdo-dev libsoup-3.0-dev
 
       - uses: actions/setup-node@v4
         with:
@@ -63,9 +74,15 @@ jobs:
       - run: npm run typecheck
       - run: npm run test:web
 
+      # Signing keys for the in-app updater. Without them tauri-action still
+      # builds; the bundles simply carry no update signature, and the app says
+      # so rather than trusting anything. See "Releasing" in the README for
+      # the two commands that create them.
       - uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
           # Empty on a manual run, which tells tauri-action to build without
           # touching releases.
@@ -78,9 +95,11 @@ jobs:
             These builds are not code-signed, so macOS and Windows will both
             warn you the first time you open the app. The Installing section
             says exactly which warning you will get and how to get past it.
+            Linux ships as an AppImage and a .deb.
 
             Agent Canvas runs the agent CLIs you already have installed. It
             does not ship or download any of them.
+          includeUpdaterJson: true
           releaseDraft: true
           prerelease: false
           args: --target ${{ matrix.target }}

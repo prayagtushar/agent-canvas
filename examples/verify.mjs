@@ -20,6 +20,7 @@ const here = dirname(fileURLToPath(import.meta.url));
 const TITLES = {
   "fix-the-tests": "Fix the failing tests",
   "two-heads": "Two agents, one fact",
+  "ask-first": "Ask before deciding",
   "build-the-api": "Build it from the spec",
 };
 

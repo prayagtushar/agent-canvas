@@ -2668,3 +2668,42 @@ body {
   background: #c42b1c;
   color: #fff;
 }
+
+/* The dollar figure sits inside the turn chip, and only when a CLI has
+   actually printed one. */
+.chip-cost {
+  margin-left: 5px;
+  padding-left: 6px;
+  border-left: 1px solid var(--glass-line);
+  font-variant-numeric: tabular-nums;
+  color: var(--live);
+}
+
+/* ---------- what an agent changed ---------- */
+
+.diff-body {
+  margin: 0;
+  font-family: var(--mono);
+  font-size: 11.5px;
+  line-height: 1.55;
+  white-space: pre;
+  overflow-x: auto;
+  user-select: text;
+}
+
+.diff-add {
+  color: var(--live);
+}
+
+.diff-del {
+  color: var(--red);
+}
+
+.diff-hunk {
+  color: var(--peer);
+}
+
+.diff-head {
+  color: var(--dim);
+  font-weight: 600;
+}

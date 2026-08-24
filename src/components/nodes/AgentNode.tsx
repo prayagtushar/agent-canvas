@@ -79,6 +79,7 @@ function AgentNodeInner({ id, data, selected }: NodeProps<AgentFlowNode>) {
   const pushToast = useStore((s) => s.pushToast);
   const revealNode = useStore((s) => s.revealNode);
   const setActivityOpen = useStore((s) => s.setActivityOpen);
+  const setChangesFor = useStore((s) => s.setChangesFor);
   const labelOf = useStore((s) => s.labelOf);
   /* Who this agent can see. An agent with no wire is alone on the canvas
      whatever else is on it, and that is not otherwise visible at a glance.
@@ -260,6 +261,16 @@ function AgentNodeInner({ id, data, selected }: NodeProps<AgentFlowNode>) {
               <span className="spinner" />
             </button>
           )}
+          <button
+            className="win-btn"
+            title="See what this agent changed on disk"
+            aria-label="See what this agent changed on disk"
+            onClick={() => setChangesFor(data.nodeId)}
+          >
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M4 6h16M4 12h10M4 18h6" />
+            </svg>
+          </button>
           <button
             className="win-btn"
             title="Copy this output"

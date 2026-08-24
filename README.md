@@ -11,6 +11,10 @@
 Run several AI coding CLIs at once on one canvas, and let them hand work to each
 other.
 
+<p align="center">
+  <img src="assets/screenshot.png" alt="Two agents on the canvas: a Claude Code lead that hired an opencode agent, the wire between them, and a panel showing what they said to each other" width="900">
+</p>
+
 Each agent is a real child process with its own harness, account, and working
 directory, running in a real terminal. What you see in a node is the CLI's own
 interface, not a transcript of it — you can answer its permission prompts, run
@@ -51,6 +55,12 @@ real MCP server.
   you can leave the window.
 - A **Diagnostics** sheet answers "why won't this CLI run": what is installed,
   which version, and how the Bus reaches each one.
+- **What a session is costing**, and a turn budget that stops the canvas before
+  a pair talking in circles overnight becomes a bill.
+- **What each agent changed on disk**, as a diff, without leaving the app.
+- Search runs over the agents' **scrollback**, not just their names, so you can
+  find whichever one touched `auth.ts`.
+- Closing the app offers to **start the same team again** next time.
 
 ## How it works
 
@@ -211,6 +221,8 @@ node examples/verify.mjs
 Start with `fix-the-tests`. Then run `two-heads` twice — once as written, and
 once with the wire between the two agents deleted. The second run fails,
 because without a connection neither agent can reach what the other knows.
+`ask-first` leaves two decisions out of the spec that only you can make, so the
+agent has to stop and ask.
 
 ### Teams
 
@@ -307,6 +319,7 @@ on a fresh checkout — that is the starting state, and the point.
 | --- | --- |
 | `src/store.test.ts` | window placement, optimistic launch and its rollback, the Bus owning the wire graph, unread counts, distinct agent names, prompt history, the traffic log, panning to a node without changing zoom, launching a team and saving one, the finished-work notification |
 | `src/report.test.ts` | the session report: the numbers at the top, names never ids, empty sections that say so, a transcript containing a code fence |
+| `src/teams.test.ts` | the built-in teams wire up, and teams you saved survive a corrupt store |
 | `src/terminals.test.ts` | output buffered before a node exists, scrollback surviving a remount, keystrokes reaching the right pty |
 | `tests/bus_flow.rs` | peer scoping, edge-gated messaging, the message cap, the task lifecycle, human escalation, renames peers can see, board order, work in progress that cannot be deleted |
 | `tests/mcp_bridge.rs` | the real MCP bridge over stdio: tool discovery, the briefing, a peer's screen readable only across a wire, blocking waits |
@@ -350,6 +363,29 @@ Every push already builds the app on both platforms, so a tag should not be
 the first time a Windows build is attempted. Running the Release workflow by
 hand from the Actions tab builds the same bundles and leaves them as workflow
 artifacts, without cutting a release.
+
+### Turning on in-app updates
+
+The app checks for a newer release on launch, and the ··· menu has a manual
+check. Both are inert until the build carries an update key, because an
+unsigned update is one anybody who controls the release host could write.
+
+Two commands, once:
+
+```sh
+npm run tauri signer generate -- -w ~/.tauri/agent-canvas.key
+```
+
+Put the **public** key in `plugins.updater.pubkey` in `src-tauri/tauri.conf.json`,
+and add the **private** key and its password as the repository secrets
+`TAURI_SIGNING_PRIVATE_KEY` and `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`. The
+release workflow already reads both. Keep the private key: losing it means
+existing installs can never be updated again, only reinstalled.
+
+Until then the app says plainly that it cannot check, rather than failing at
+people with a dialog.
+
+### Code signing
 
 Neither build is signed. Signing macOS needs a paid Apple Developer account
 and `APPLE_CERTIFICATE`, `APPLE_SIGNING_IDENTITY`, `APPLE_ID` and

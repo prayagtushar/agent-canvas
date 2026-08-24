@@ -4,6 +4,7 @@ pub mod platform;
 pub mod pty;
 pub mod server;
 pub mod spawn;
+pub mod usage;
 pub mod worktree;
 
 use bus::{BusShared, NodeInfo};
@@ -103,6 +104,13 @@ fn create_worktree(repo: String, name: String) -> Result<String, String> {
     worktree::create_worktree(repo, name)
 }
 
+/// What one agent has changed where it works.
+#[tauri::command]
+fn agent_diff(shared: State<'_, Shared>, id: String) -> Result<String, String> {
+    let node = shared.get_node(&id).ok_or("unknown agent")?;
+    worktree::agent_diff(node.cwd)
+}
+
 #[tauri::command]
 fn remove_worktree(repo: String, path: String) -> Result<(), String> {
     worktree::remove_worktree(repo, path)
@@ -144,6 +152,14 @@ fn set_allow_hiring(shared: State<'_, Shared>, on: bool) {
     shared.emit_comm();
 }
 
+/// Raise or lower the turn budget. Raising it is what the operator does when
+/// the canvas stopped on work they meant to keep doing.
+#[tauri::command]
+fn set_turn_cap(shared: State<'_, Shared>, cap: u32) {
+    *shared.turn_cap.lock() = cap;
+    shared.emit_comm();
+}
+
 #[tauri::command]
 fn set_message_cap(shared: State<'_, Shared>, cap: u32) {
     *shared.msg_cap.lock() = cap;
@@ -179,6 +195,18 @@ fn remove_task(shared: State<'_, Shared>, id: String) -> Result<(), String> {
 #[tauri::command]
 fn list_tasks(shared: State<'_, Shared>) -> Vec<bus::Task> {
     shared.list_tasks()
+}
+
+/// Every node with its counters, for the spend breakdown.
+#[tauri::command]
+fn list_nodes(shared: State<'_, Shared>) -> Vec<NodeInfo> {
+    let mut nodes: Vec<NodeInfo> = shared.nodes.lock().values().cloned().collect();
+    nodes.sort_by(|a, b| a.label.cmp(&b.label));
+    // The screen is large and nothing here needs it.
+    for n in &mut nodes {
+        n.output_tail.clear();
+    }
+    nodes
 }
 
 #[tauri::command]
@@ -267,6 +295,8 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_notification::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
+        .plugin(tauri_plugin_process::init())
         .manage(shared.clone())
         .setup(move |app| {
             *shared_for_setup.app.lock() = Some(app.handle().clone());
@@ -304,15 +334,18 @@ pub fn run() {
             is_git_repo,
             create_worktree,
             remove_worktree,
+            agent_diff,
             get_comm_state,
             set_auto_comm,
             set_allow_hiring,
             set_message_cap,
+            set_turn_cap,
             reset_message_count,
             list_memory,
             add_task,
             remove_task,
             list_tasks,
+            list_nodes,
             forget_memory,
             remember,
         ])

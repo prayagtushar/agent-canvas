@@ -247,6 +247,8 @@ function Empty() {
   const launchAgent = useStore((s) => s.launchAgent);
   const launchTeam = useStore((s) => s.launchTeam);
   const workspaceRoot = useStore((s) => s.workspaceRoot);
+  const resumable = useStore((s) => s.resumable);
+  const forgetResumable = useStore((s) => s.forgetResumable);
   const installed = harnesses.filter((h) => h.available);
   const folder = workspaceRoot.split("/").filter(Boolean).pop();
 
@@ -258,6 +260,35 @@ function Empty() {
           <div className="empty-sub">
             Agent Canvas runs the CLIs you already have. Install Claude Code,
             Codex, Gemini CLI or opencode, then reload the canvas.
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (resumable) {
+    return (
+      <div className="empty">
+        <div className="empty-inner">
+          <div className="empty-title">Pick up where you left off</div>
+          <div className="empty-sub">
+            {folder
+              ? `${resumable.blurb}, in ${folder}. The processes are gone; this starts them again with the same names, roles and wires.`
+              : "Choose a working folder in the toolbar first."}
+          </div>
+          <div className="empty-teams">
+            <button className="empty-team" onClick={() => void launchTeam(resumable)}>
+              <span className="empty-team-name">Resume</span>
+              <span className="empty-team-blurb">{resumable.blurb}</span>
+              <span className="empty-team-count">
+                {resumable.members.map((m) => m.name).join(" · ")}
+              </span>
+            </button>
+          </div>
+          <div className="empty-actions">
+            <button className="empty-btn" onClick={forgetResumable}>
+              Start fresh instead
+            </button>
           </div>
         </div>
       </div>

@@ -9,6 +9,7 @@ vi.mock("./api", () => ({
     agentResize: vi.fn().mockResolvedValue(undefined),
     saveWorkspace: vi.fn().mockResolvedValue(undefined),
     listTasks: vi.fn().mockResolvedValue([]),
+    loadWorkspace: vi.fn().mockResolvedValue(null),
     addEdge: vi.fn().mockResolvedValue(undefined),
     sendPrompt: vi.fn().mockResolvedValue(undefined),
   },
@@ -24,6 +25,8 @@ vi.mock("./terminals", () => ({
   clearAll: vi.fn(),
   write: vi.fn(),
   syncTheme: vi.fn(),
+  textOf: vi.fn(() => ""),
+  contains: vi.fn(() => false),
 }));
 
 import { api } from "./api";
@@ -75,6 +78,7 @@ beforeEach(() => {
   vi.mocked(api.agentResize).mockResolvedValue(undefined);
   vi.mocked(api.saveWorkspace).mockResolvedValue(undefined);
   vi.mocked(api.listTasks).mockResolvedValue([]);
+  vi.mocked(api.loadWorkspace).mockResolvedValue(null);
   vi.mocked(api.addEdge).mockResolvedValue(undefined);
   vi.mocked(notify.away).mockReturnValue(true);
   vi.mocked(notify.notify).mockResolvedValue(undefined);
@@ -736,5 +740,89 @@ describe("an agent another agent started", () => {
     st.addAgentCanvasNode(info("hired", "Hired"));
     st.addAgentCanvasNode(info("hired", "Hired"));
     expect(useStore.getState().nodes).toHaveLength(1);
+  });
+});
+
+describe("finding an agent by what it did", () => {
+  it("matches on its scrollback, not just its name", () => {
+    const orion = {
+      type: "agent",
+      data: { nodeId: "a", label: "Orion", harness: "claude", role: "" },
+    };
+    vi.mocked(terminals.contains).mockReturnValue(false);
+    expect(matchesSearch(orion as never, "auth.ts")).toBe(false);
+
+    vi.mocked(terminals.contains).mockReturnValue(true);
+    expect(matchesSearch(orion as never, "auth.ts")).toBe(true);
+    expect(terminals.contains).toHaveBeenCalledWith("a", "auth.ts");
+  });
+
+  it("matches on the role, so you can find whoever reviews", () => {
+    vi.mocked(terminals.contains).mockReturnValue(false);
+    const node = {
+      type: "agent",
+      data: { nodeId: "a", label: "Juno", harness: "codex", role: "Reviews the work" },
+    };
+    expect(matchesSearch(node as never, "reviews")).toBe(true);
+  });
+});
+
+describe("picking a session back up", () => {
+  it("rebuilds the last canvas as a team, without starting anything", async () => {
+    vi.mocked(api.loadWorkspace).mockResolvedValue(
+      JSON.stringify({
+        version: 1,
+        nodes: [
+          { id: "a", type: "agent", position: { x: 0, y: 0 }, data: { label: "Maker", harness: "claude", role: "Writes the code" } },
+          { id: "b", type: "agent", position: { x: 0, y: 0 }, data: { label: "Reviewer", harness: "codex", role: "Objects" } },
+          { id: "n1", type: "note", position: { x: 0, y: 0 }, data: { note: "keep me", label: "note" } },
+        ],
+        edges: [{ source: "a", target: "b" }],
+      })
+    );
+
+    await useStore.getState().restoreWorkspace();
+    const st = useStore.getState();
+
+    // Nothing was launched: four CLIs starting because someone opened the app
+    // would be a rude surprise and a real bill.
+    expect(api.addAgent).not.toHaveBeenCalled();
+    expect(st.nodes.map((n) => n.type)).toEqual(["note"]);
+
+    expect(st.resumable).not.toBeNull();
+    expect(st.resumable!.members.map((m) => [m.name, m.harness, m.role])).toEqual([
+      ["Maker", "claude", "Writes the code"],
+      ["Reviewer", "codex", "Objects"],
+    ]);
+    expect(st.resumable!.wires).toEqual([[0, 1]]);
+    expect(st.resumable!.members[0].brief).toContain("Writes the code");
+  });
+
+  it("offers nothing when the last session had no agents", async () => {
+    vi.mocked(api.loadWorkspace).mockResolvedValue(
+      JSON.stringify({ version: 1, nodes: [], edges: [] })
+    );
+    await useStore.getState().restoreWorkspace();
+    expect(useStore.getState().resumable).toBeNull();
+  });
+
+  it("does not offer a stand-in that never became an agent", async () => {
+    vi.mocked(api.loadWorkspace).mockResolvedValue(
+      JSON.stringify({
+        version: 1,
+        nodes: [
+          { id: "p", type: "agent", position: { x: 0, y: 0 }, data: { label: "Starting", harness: "claude", pending: true } },
+        ],
+        edges: [],
+      })
+    );
+    await useStore.getState().restoreWorkspace();
+    expect(useStore.getState().resumable).toBeNull();
+  });
+
+  it("survives a workspace file that is not valid JSON", async () => {
+    vi.mocked(api.loadWorkspace).mockResolvedValue("{ not json");
+    await expect(useStore.getState().restoreWorkspace()).resolves.toBeUndefined();
+    expect(useStore.getState().resumable).toBeNull();
   });
 });

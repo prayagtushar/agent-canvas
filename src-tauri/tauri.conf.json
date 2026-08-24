@@ -43,6 +43,18 @@
     "longDescription": "Agent Canvas runs AI coding CLIs as real processes on a spatial canvas. Agents discover each other only through connections you draw, share a task board and a common memory, and escalate decisions back to you.",
     "macOS": {
       "minimumSystemVersion": "10.15"
+    },
+    "createUpdaterArtifacts": true
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "",
+      "endpoints": [
+        "https://github.com/prayagtushar/agent-canvas/releases/latest/download/latest.json"
+      ],
+      "windows": {
+        "installMode": "passive"
+      }
     }
   }
 }

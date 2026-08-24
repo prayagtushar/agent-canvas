@@ -16,8 +16,9 @@ fn node(id: &str, harness: &str) -> NodeInfo {
         role: String::new(),
         output_tail: vec![],
         unread: 0,
-        tokens_in: 0,
-        tokens_out: 0,
+        turns: 0,
+        busy_ms: 0,
+        tokens: 0,
         cost_usd: 0.0,
     }
 }

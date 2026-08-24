@@ -9,6 +9,7 @@ import Rail from "./components/Rail";
 import Toasts from "./components/Toasts";
 import Shortcuts from "./components/Shortcuts";
 import Diagnostics from "./components/Diagnostics";
+import Changes from "./components/Changes";
 import CommChips from "./components/CommChips";
 import Activity from "./components/Activity";
 import Approvals from "./Approvals";
@@ -16,6 +17,7 @@ import { api } from "./api";
 import { useStore } from "./store";
 import * as terminals from "./terminals";
 import * as notify from "./notify";
+import * as updates from "./updates";
 import type { BusEvent } from "./types";
 
 export default function App() {
@@ -88,6 +90,11 @@ export default function App() {
           case "comm":
             st.setComm(payload.comm);
             break;
+          case "budget":
+            st.stopEverything(
+              `The canvas hit its ${st.comm.turnCap}-turn budget and stopped. Raise it in Settings to carry on.`
+            );
+            break;
           case "node": {
             // An agent one of the agents started. Nothing on the canvas asked
             // for it, so it has to be placed, shown, and named out loud.
@@ -114,6 +121,16 @@ export default function App() {
       }
     };
     void register();
+
+    // A quiet look for a newer build. Says nothing unless there is one, and
+    // never blocks startup: an unsigned build simply has no way to check.
+    void updates.look().then((state) => {
+      if (state.kind === "available") {
+        useStore
+          .getState()
+          .pushToast("ok", `Agent Canvas ${state.version} is available — check the ··· menu.`);
+      }
+    });
 
     const st = useStore.getState();
     void st.loadHarnesses();
@@ -263,6 +280,7 @@ export default function App() {
       <Toasts />
       <Shortcuts />
       <Diagnostics />
+      <Changes />
     </div>
     </ReactFlowProvider>
   );

@@ -16,6 +16,53 @@ fn git(repo: &str, args: &[&str]) -> Result<String, String> {
     }
 }
 
+/// What an agent has changed in the directory it works in.
+///
+/// Staged and unstaged together, plus anything untracked, because an agent
+/// that wrote a new file has changed the tree just as much as one that edited
+/// an old one — and `git diff` alone would show neither.
+///
+/// Capped: a diff is for reading, and an agent that reformatted a lockfile can
+/// produce megabytes nobody will scroll through.
+pub fn agent_diff(dir: String) -> Result<String, String> {
+    const MAX: usize = 200_000;
+
+    if !is_git_repo(dir.clone()) {
+        return Err(format!("{dir} is not inside a git repository"));
+    }
+
+    let tracked = git(&dir, &["diff", "HEAD", "--stat", "--patch"]).unwrap_or_default();
+
+    // Untracked files are listed rather than printed: one of them is as likely
+    // to be a build directory as a source file.
+    let untracked = git(&dir, &["ls-files", "--others", "--exclude-standard"]).unwrap_or_default();
+    let new_files: Vec<&str> = untracked.lines().filter(|l| !l.trim().is_empty()).collect();
+
+    let mut out = String::new();
+    if !new_files.is_empty() {
+        out.push_str("New files, not yet added to git:\n");
+        for f in &new_files {
+            out.push_str("  ");
+            out.push_str(f);
+            out.push('\n');
+        }
+        out.push('\n');
+    }
+    if tracked.trim().is_empty() {
+        if new_files.is_empty() {
+            return Ok("Nothing has changed here yet.".to_string());
+        }
+    } else {
+        out.push_str(&tracked);
+    }
+
+    if out.len() > MAX {
+        out.truncate(MAX);
+        out.push_str("\n\n… truncated. Read the rest with `git diff` in that folder.");
+    }
+    Ok(out)
+}
+
 pub fn is_git_repo(path: String) -> bool {
     git(&path, &["rev-parse", "--is-inside-work-tree"]).as_deref() == Ok("true")
 }

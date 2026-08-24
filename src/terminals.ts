@@ -184,6 +184,25 @@ export function textOf(nodeId: string): string {
   return lines.join("\n");
 }
 
+/** Whether this terminal's scrollback contains `needle`, case-insensitively.
+ *
+ *  Scanning is deliberately kept here rather than done by pulling `textOf`
+ *  into the store: a canvas of eight agents holds a lot of scrollback, and
+ *  building all of it into strings on every keystroke is the difference
+ *  between a search box and a stutter. This reads the buffer once and stops
+ *  at the first line that matches. */
+export function contains(nodeId: string, needle: string): boolean {
+  const entry = entries.get(nodeId);
+  if (!entry || !needle) return false;
+  const q = needle.toLowerCase();
+  const buf = entry.term.buffer.active;
+  for (let i = 0; i < buf.length; i++) {
+    const line = buf.getLine(i)?.translateToString(true);
+    if (line && line.toLowerCase().includes(q)) return true;
+  }
+  return false;
+}
+
 export function clearAll() {
   buffered.clear();
   for (const { term } of entries.values()) term.clear();

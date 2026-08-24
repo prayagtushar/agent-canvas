@@ -9,6 +9,9 @@ src-tauri/gen/schemas/
 # local workspace state
 .agent-canvas/
 
+# scratch from browser tooling
+.playwright-mcp/
+
 # editor / OS
 .DS_Store
 *.log

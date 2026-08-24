@@ -12,6 +12,12 @@ export interface NodeInfo {
   role?: string;
   output_tail: string[];
   unread: number;
+  /** Exact: turns taken and time spent working. */
+  turns?: number;
+  busy_ms?: number;
+  /** Best effort: whatever the CLI printed. Zero means it printed nothing. */
+  tokens?: number;
+  cost_usd?: number;
 }
 
 /** One agent in a team template. */
@@ -105,6 +111,12 @@ export interface CommState {
   /** Agents on the canvas now, and the most allowed at once. */
   agents: number;
   agentCap: number;
+  /** Turns the canvas has taken, and the budget it stops at. Exact. */
+  turns: number;
+  turnCap: number;
+  /** What the CLIs have reported spending. Zero means none of them said. */
+  tokens: number;
+  costUsd: number;
 }
 
 export interface MemoryEntry {
@@ -159,7 +171,9 @@ export type BusEvent =
   | { kind: "notice"; node: string; text: string }
   /** An agent another agent started. The canvas did not launch it, so this
    *  is the only way it learns the node exists. */
-  | { kind: "node"; node: NodeInfo };
+  | { kind: "node"; node: NodeInfo }
+  /** The canvas has reached its turn budget and should stop itself. */
+  | { kind: "budget" };
 
 export type AgentData = {
   nodeId: string;

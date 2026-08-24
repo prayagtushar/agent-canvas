@@ -20,11 +20,17 @@ pub struct NodeInfo {
     pub role: String,
     pub output_tail: Vec<String>,
     pub unread: u32,
-    /// Cumulative usage reported by the harness, when it reports any.
+    /// Times this agent has gone from idle to working. Counted here, so it
+    /// is exact however the turn was started.
     #[serde(default)]
-    pub tokens_in: u64,
+    pub turns: u64,
+    /// How long it has spent working, in milliseconds. Also exact.
     #[serde(default)]
-    pub tokens_out: u64,
+    pub busy_ms: u64,
+    /// The latest totals the CLI has shown on screen. Zero means it has not
+    /// shown any — never that the agent has cost nothing.
+    #[serde(default)]
+    pub tokens: u64,
     #[serde(default)]
     pub cost_usd: f64,
 }
@@ -83,6 +89,9 @@ pub struct BusShared {
     /// staff its own team is the point of the canvas, and it is also real
     /// processes and real money, so the operator holds the switch.
     pub allow_hiring: Mutex<bool>,
+    /// Turns the whole canvas may take before it stops itself. A runaway team
+    /// spends real money, and the operator is usually not watching.
+    pub turn_cap: Mutex<u32>,
     /// The most agents allowed on the canvas at once, however they got there.
     pub agent_cap: Mutex<u32>,
     pub memory: Mutex<HashMap<String, MemoryEntry>>,
@@ -104,6 +113,11 @@ pub const DEFAULT_MSG_CAP: u32 = 200;
 /// worth running, low enough that an orchestrator with a bad plan cannot
 /// start forty processes while you are making coffee.
 pub const DEFAULT_AGENT_CAP: u32 = 8;
+
+/// Turns the canvas may take before it stops itself. High enough that a team
+/// doing real work never notices, low enough that a pair talking in circles
+/// overnight costs a few dollars rather than a few hundred.
+pub const DEFAULT_TURN_CAP: u32 = 120;
 
 /// Remove terminal control sequences. Agent CLIs colour their output and
 /// redraw spinners with escape codes; pasted into a plain <pre> those show up
@@ -187,6 +201,7 @@ impl BusShared {
             msg_count: Mutex::new(0),
             msg_cap: Mutex::new(DEFAULT_MSG_CAP),
             allow_hiring: Mutex::new(true),
+            turn_cap: Mutex::new(DEFAULT_TURN_CAP),
             agent_cap: Mutex::new(DEFAULT_AGENT_CAP),
             memory: Mutex::new(HashMap::new()),
             nodes: Mutex::new(HashMap::new()),
@@ -281,22 +296,62 @@ impl BusShared {
         );
     }
 
-    /// Record usage a harness reported for one turn.
-    pub fn add_usage(&self, node_id: &str, tin: u64, tout: u64, cost: f64) {
+    /// Store the latest totals read off an agent's screen.
+    ///
+    /// These replace rather than add: what a CLI prints is the session so
+    /// far, so accumulating it would climb by the whole session's cost every
+    /// time the screen is sampled. A reading only ever moves a figure up —
+    /// a total that scrolled off screen must not reset it to zero.
+    pub fn observe_usage(&self, node_id: &str, r: crate::usage::Reading) {
+        let mut changed = false;
         if let Some(n) = self.nodes.lock().get_mut(node_id) {
-            n.tokens_in += tin;
-            n.tokens_out += tout;
-            n.cost_usd += cost;
+            if r.tokens > n.tokens {
+                n.tokens = r.tokens;
+                changed = true;
+            }
+            if r.cost_usd > n.cost_usd {
+                n.cost_usd = r.cost_usd;
+                changed = true;
+            }
         }
-        self.emit(
-            "agent-usage",
-            serde_json::json!({
-                "nodeId": node_id,
-                "tokensIn": tin,
-                "tokensOut": tout,
-                "costUsd": cost,
-            }),
-        );
+        if changed {
+            self.emit_comm();
+        }
+    }
+
+    /// An agent has started working. Exact, however the turn was started —
+    /// by the canvas, by a peer, or by the operator typing into the terminal.
+    ///
+    /// Returns true when this is the turn that crossed the canvas budget, so
+    /// the caller can stop everything once rather than on every turn after.
+    pub fn note_turn(&self, node_id: &str) -> bool {
+        let total = {
+            let mut nodes = self.nodes.lock();
+            if let Some(n) = nodes.get_mut(node_id) {
+                n.turns += 1;
+            }
+            nodes.values().map(|n| n.turns).sum::<u64>()
+        };
+        let cap = *self.turn_cap.lock() as u64;
+        self.emit_comm();
+        cap > 0 && total == cap
+    }
+
+    /// Time an agent spent working, added as the watcher observes it.
+    pub fn add_busy(&self, node_id: &str, ms: u64) {
+        if let Some(n) = self.nodes.lock().get_mut(node_id) {
+            n.busy_ms += ms;
+        }
+    }
+
+    /// What the whole canvas has spent, as far as anyone can tell.
+    pub fn spend(&self) -> (u64, u64, f64) {
+        let nodes = self.nodes.lock();
+        (
+            nodes.values().map(|n| n.turns).sum(),
+            nodes.values().map(|n| n.tokens).sum(),
+            nodes.values().map(|n| n.cost_usd).sum(),
+        )
     }
 
     /// Raw pty bytes, handed to the frontend untouched. The node renders them
@@ -618,11 +673,16 @@ impl BusShared {
     }
 
     pub fn comm_state(&self) -> serde_json::Value {
+        let (turns, tokens, cost) = self.spend();
         serde_json::json!({
             "autoComm": *self.auto_comm.lock(),
             "sent": *self.msg_count.lock(),
             "cap": *self.msg_cap.lock(),
             "hiring": *self.allow_hiring.lock(),
+            "turns": turns,
+            "turnCap": *self.turn_cap.lock(),
+            "tokens": tokens,
+            "costUsd": cost,
             "agents": self.nodes.lock().len(),
             "agentCap": *self.agent_cap.lock(),
         })

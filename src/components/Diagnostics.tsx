@@ -1,9 +1,17 @@
 import { useEffect, useState } from "react";
 import { api } from "../api";
 import { useStore } from "../store";
-import type { BusInfo, HarnessDiagnosis } from "../types";
+import type { BusInfo, HarnessDiagnosis, NodeInfo } from "../types";
 
-/** Why an agent will or will not run here.
+/** Working time, in whatever unit reads best at that length. */
+function minutes(ms: number): string {
+  if (ms < 60_000) return `${Math.round(ms / 1000)}s`;
+  const mins = Math.round(ms / 60_000);
+  if (mins < 60) return `${mins}m`;
+  return `${Math.floor(mins / 60)}h ${(mins % 60).toString().padStart(2, "0")}m`;
+}
+
+/** Why an agent will or will not run here, and what the session has spent.
  *
  *  Every problem this app has actually hit in the wild has been environmental:
  *  a CLI not on PATH, a CLI not logged in, a version too old for the flags we
@@ -13,9 +21,11 @@ export default function Diagnostics() {
   const open = useStore((s) => s.diagnosticsOpen);
   const setOpen = useStore((s) => s.setDiagnosticsOpen);
   const pushToast = useStore((s) => s.pushToast);
+  const comm = useStore((s) => s.comm);
 
   const [rows, setRows] = useState<HarnessDiagnosis[] | null>(null);
   const [bus, setBus] = useState<BusInfo | null>(null);
+  const [nodes, setNodes] = useState<NodeInfo[]>([]);
   const [busy, setBusy] = useState(false);
 
   const refresh = () => {
@@ -23,9 +33,11 @@ export default function Diagnostics() {
     void Promise.all([
       api.diagnoseHarnesses().catch(() => [] as HarnessDiagnosis[]),
       api.getBusInfo().catch(() => null),
-    ]).then(([harnesses, info]) => {
+      api.listNodes().catch(() => [] as NodeInfo[]),
+    ]).then(([harnesses, info, live]) => {
       setRows(harnesses);
       setBus(info);
+      setNodes(live);
       setBusy(false);
     });
   };
@@ -93,6 +105,42 @@ export default function Diagnostics() {
               The Bus is not listening. Agents will run, but none of them can see a
               peer, a task, or shared memory. Reload the canvas.
             </div>
+          )}
+
+          {nodes.length > 0 && (
+            <>
+              <div className="diag-section">
+                What this session has spent
+                <span className="activity-count">{comm.turns} turns</span>
+              </div>
+              <div className="diag-spend">
+                {nodes.map((n) => (
+                  <div key={n.id} className="diag-row">
+                    <div className="diag-name">
+                      <span className="diag-dot ok" />
+                      {n.label}
+                      <span className="diag-version">
+                        {n.turns ?? 0} turn{(n.turns ?? 0) === 1 ? "" : "s"} ·{" "}
+                        {minutes(n.busy_ms ?? 0)} working
+                      </span>
+                    </div>
+                    <div className="diag-detail">
+                      {n.cost_usd || n.tokens
+                        ? `${n.tokens ? n.tokens.toLocaleString() + " tokens" : ""}${
+                            n.tokens && n.cost_usd ? " · " : ""
+                          }${n.cost_usd ? "$" + n.cost_usd.toFixed(4) : ""}`
+                        : `${n.harness} does not print what it costs`}
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <div className="diag-note muted small">
+                Turns and working time are counted here and are exact. Tokens and
+                dollars are read off each CLI&rsquo;s own screen, so they appear only
+                for the ones that print them, and they are what that CLI claims
+                rather than what your provider bills.
+              </div>
+            </>
           )}
 
           <div className="diag-section">

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { api } from "../api";
 import { useStore } from "../store";
 import WindowControls, { isWindows } from "./WindowControls";
+import * as updates from "../updates";
 import type { AgentFlowNode } from "../types";
 
 function Icon({ d, size = 14 }: { d: string; size?: number }) {
@@ -66,6 +67,25 @@ export default function TitleBar() {
     pushToast("ok", "Workspace saved.");
   };
 
+  /** `loud` when the operator asked: then even "you are up to date" is worth
+   *  saying. The startup check stays quiet unless there is something to get. */
+  const checkForUpdate = async (loud: boolean) => {
+    const state = await updates.look();
+    if (state.kind === "available") {
+      pushToast("ok", `Agent Canvas ${state.version} is out. Updating…`);
+      try {
+        await state.install();
+      } catch (e) {
+        pushToast("err", `Update failed — ${String(e)}`);
+      }
+    } else if (loud) {
+      pushToast(
+        state.kind === "none" ? "ok" : "err",
+        state.kind === "none" ? "You are on the latest version." : state.why
+      );
+    }
+  };
+
   const copyBus = async () => {
     try {
       const bus = await api.getBusInfo();
@@ -126,6 +146,17 @@ export default function TitleBar() {
           </button>
           {menuOpen && (
             <div className="rail-menu" style={{ top: 30, left: "auto", right: 0 }}>
+              <button
+                className="menu-item"
+                onClick={() => {
+                  setMenuOpen(false);
+                  void checkForUpdate(true);
+                }}
+              >
+                <span>Check for updates…</span>
+                <Icon d={RELOAD} size={12} />
+              </button>
+              <div className="menu-sep" />
               <button
                 className="menu-item"
                 onClick={() => {

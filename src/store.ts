@@ -81,6 +81,8 @@ interface StoreState {
   focus: boolean;
   shortcutsOpen: boolean;
   diagnosticsOpen: boolean;
+  /** The agent whose diff is on screen, if any. */
+  changesFor: string | null;
   /** Tell the desktop when something needs the operator and they are away. */
   notifications: boolean;
   theme: Theme;
@@ -101,6 +103,9 @@ interface StoreState {
   history: string[];
   /** Per-wire message counter. Bumping one replays the bead on that wire. */
   pulses: Record<string, { seq: number; reverse: boolean }>;
+  /** The agents that were on the canvas when it last closed, as a team that
+   *  can be started again. Null when the last session had none. */
+  resumable: Team | null;
   /** Set on canvas init so anything can frame the view. */
   flow: ReactFlowInstance<CanvasNode, Edge> | null;
 
@@ -120,6 +125,7 @@ interface StoreState {
   ) => Promise<string | null>;
   launchTeam: (team: Team) => Promise<void>;
   teamFromCanvas: (label: string) => Team | null;
+  forgetResumable: () => void;
   removeNode: (id: string) => void;
 
   setStatus: (nodeId: string, status: string) => void;
@@ -142,6 +148,7 @@ interface StoreState {
   setFocus: (v: boolean) => void;
   setShortcutsOpen: (v: boolean) => void;
   setDiagnosticsOpen: (v: boolean) => void;
+  setChangesFor: (id: string | null) => void;
   setNotifications: (v: boolean) => void;
   setTheme: (t: Theme) => void;
   setWorkspaceRoot: (p: string) => void;
@@ -153,6 +160,7 @@ interface StoreState {
   frameAll: () => void;
   revealNode: (id: string) => void;
   setBroadcast: (v: boolean) => void;
+  stopEverything: (why: string) => void;
   logMessage: (from: string, to: string, text: string) => void;
   setActivityOpen: (v: boolean) => void;
   clearActivity: () => void;
@@ -204,7 +212,11 @@ export function matchesSearch(node: CanvasNode, query: string): boolean {
   if (node.type === "agent") {
     return (
       node.data.label.toLowerCase().includes(q) ||
-      node.data.harness.toLowerCase().includes(q)
+      node.data.harness.toLowerCase().includes(q) ||
+      (node.data.role ?? "").toLowerCase().includes(q) ||
+      // Then what the agent actually did. Most of what an operator wants to
+      // find — a filename, an error, a decision — was never in a label.
+      terminals.contains(node.data.nodeId, q)
     );
   }
   if (node.type === "note") return node.data.note.toLowerCase().includes(q) || "note".includes(q);
@@ -290,18 +302,31 @@ export const useStore = create<StoreState>()((set, get) => ({
   focus: false,
   shortcutsOpen: false,
   diagnosticsOpen: false,
+  changesFor: null,
   notifications: localStorage.getItem("ac.notifications") !== "0",
   theme: (localStorage.getItem("ac.theme") as Theme) ?? "midnight",
   workspaceRoot: localStorage.getItem("ac.workspaceRoot") ?? "",
   useWorktrees: localStorage.getItem("ac.useWorktrees") === "1",
   memory: [],
-  comm: { autoComm: true, sent: 0, cap: 200, hiring: true, agents: 0, agentCap: 8 },
+  comm: {
+    autoComm: true,
+    sent: 0,
+    cap: 200,
+    hiring: true,
+    agents: 0,
+    agentCap: 8,
+    turns: 0,
+    turnCap: 120,
+    tokens: 0,
+    costUsd: 0,
+  },
   broadcast: false,
   activity: [],
   activityOpen: false,
   activitySeen: 0,
   history: readHistory(),
   pulses: {},
+  resumable: null,
   flow: null,
 
   onNodesChange: (changes) =>
@@ -491,6 +516,8 @@ export const useStore = create<StoreState>()((set, get) => ({
     );
   },
 
+  forgetResumable: () => set({ resumable: null }),
+
   /** Capture what is on the canvas as a team that can be launched again.
    *
    *  Agent processes do not survive a restart, so this is how a canvas the
@@ -667,6 +694,8 @@ export const useStore = create<StoreState>()((set, get) => ({
 
   setDiagnosticsOpen: (diagnosticsOpen) => set({ diagnosticsOpen }),
 
+  setChangesFor: (changesFor) => set({ changesFor }),
+
   setNotifications: (notifications) => {
     localStorage.setItem("ac.notifications", notifications ? "1" : "0");
     set({ notifications });
@@ -756,6 +785,18 @@ export const useStore = create<StoreState>()((set, get) => ({
   },
 
   setBroadcast: (broadcast) => set({ broadcast }),
+
+  /** Put the whole canvas down: interrupt every agent that is working and
+   *  stop them talking to each other. What the turn budget does when it
+   *  trips, and what the operator gets a button for. */
+  stopEverything: (why) => {
+    const running = Object.entries(get().statuses)
+      .filter(([, s]) => s === "running" || s === "waiting")
+      .map(([id]) => id);
+    running.forEach((id) => void api.interruptAgent(id).catch(() => undefined));
+    void api.setAutoComm(false).catch(() => undefined);
+    get().pushToast("err", why);
+  },
 
   /** Keep the operator's own copy of a message that crossed a wire. The
    *  agents receive these as typed input; nothing else records them. */
@@ -941,18 +982,25 @@ export const useStore = create<StoreState>()((set, get) => ({
     }
   },
 
-  // Agent processes do not survive a restart, so only the layout of
-  // notes and the project card comes back.
+  /* Notes and cards come back as they were. Agents cannot: those were
+     processes, and they died with the app. What comes back for them is the
+     shape of the team — who, running what, in what role, wired how — offered
+     as something to start again rather than started automatically. Relaunching
+     four CLIs because someone opened the app would be a rude surprise and a
+     real bill. */
   restoreWorkspace: async () => {
     try {
       const raw = await api.loadWorkspace();
       if (!raw) return;
       const file = JSON.parse(raw) as {
         tint?: number;
-        nodes?: { id: string; type: string; position: { x: number; y: number }; data: unknown }[];
+        nodes?: { id: string; type: string; position: { x: number; y: number }; data: Record<string, unknown> }[];
+        edges?: { source: string; target: string }[];
       };
       if (typeof file.tint === "number") set({ tint: file.tint });
-      const restorable = (file.nodes ?? []).filter(
+
+      const saved = file.nodes ?? [];
+      const restorable = saved.filter(
         (n) => n.type === "note" || n.type === "taskboard" || n.type === "memory"
       ) as unknown as CanvasNode[];
       if (restorable.length) {
@@ -961,6 +1009,37 @@ export const useStore = create<StoreState>()((set, get) => ({
         // nowhere near the default viewport. Show them.
         get().frameAll();
       }
+
+      const agents = saved.filter((n) => n.type === "agent" && !n.data?.pending);
+      if (agents.length === 0) return;
+      const index = new Map(agents.map((a, i) => [a.id, i]));
+      const wires: [number, number][] = [];
+      for (const e of file.edges ?? []) {
+        const a = index.get(e.source);
+        const b = index.get(e.target);
+        if (a !== undefined && b !== undefined) wires.push([a, b]);
+      }
+      set({
+        resumable: {
+          id: "resume",
+          label: "Last session",
+          blurb: `${agents.length} agent${agents.length === 1 ? "" : "s"}, ${wires.length} connection${wires.length === 1 ? "" : "s"}`,
+          saved: true,
+          members: agents.map((a) => {
+            const role = String(a.data?.role ?? "");
+            const label = String(a.data?.label ?? "Agent");
+            return {
+              harness: String(a.data?.harness ?? ""),
+              name: label,
+              role,
+              brief: role
+                ? `You are the ${label} on this canvas. Your role: ${role}. Do not start work yet. Reply with one line confirming your role, then wait.`
+                : "",
+            };
+          }),
+          wires,
+        },
+      });
     } catch {
       /* a corrupt workspace should never block startup */
     }

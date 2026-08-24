@@ -77,6 +77,9 @@ export const api = {
   removeWorktree: (repo: string, path: string): Promise<void> =>
     invoke<void>("remove_worktree", { repo, path }),
 
+  /** What one agent has changed in the folder it works in. */
+  agentDiff: (id: string): Promise<string> => invoke<string>("agent_diff", { id }),
+
   getCommState: (): Promise<CommState> => invoke<CommState>("get_comm_state"),
 
   setAutoComm: (on: boolean): Promise<void> => invoke<void>("set_auto_comm", { on }),
@@ -87,11 +90,17 @@ export const api = {
 
   setMessageCap: (cap: number): Promise<void> => invoke<void>("set_message_cap", { cap }),
 
+  /** Raise or lower how many turns the canvas may take before it stops. */
+  setTurnCap: (cap: number): Promise<void> => invoke<void>("set_turn_cap", { cap }),
+
   resetMessageCount: (): Promise<void> => invoke<void>("reset_message_count"),
 
   listMemory: (): Promise<MemoryEntry[]> => invoke<MemoryEntry[]>("list_memory"),
 
   listTasks: (): Promise<Task[]> => invoke<Task[]>("list_tasks"),
+
+  /** Every node the Bus knows about, with its counters. */
+  listNodes: (): Promise<NodeInfo[]> => invoke<NodeInfo[]>("list_nodes"),
 
   /** Put work on the shared board as the operator. */
   addTask: (title: string, details: string): Promise<Task> =>

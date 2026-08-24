@@ -11,6 +11,7 @@ Nothing here installs anything. They all run on Node's own test runner.
 | --- | --- | --- |
 | [fix-the-tests](fix-the-tests) | Four bugs, nine tests, five red | Review pair |
 | [two-heads](two-heads) | One agent knows a fact the other needs | Review pair |
+| [ask-first](ask-first) | Two decisions only you can make | One agent |
 | [build-the-api](build-the-api) | Fifteen tests, an empty `src/` | Orchestrator |
 
 Start with **fix-the-tests**. It is the shortest and it proves the basics work
@@ -20,6 +21,9 @@ on your machine.
 the wire between the two agents deleted. The second run fails, because the
 frontend agent has no way to learn what the backend agent knows. That is the
 claim this whole app is built on, settled by a test rather than a demo.
+
+**ask-first** leaves two decisions out of the spec that cannot be derived from
+the folder. The agent has to stop and ask you, and it blocks until you answer.
 
 **build-the-api** is the full orchestration path, including one agent hiring
 two more.

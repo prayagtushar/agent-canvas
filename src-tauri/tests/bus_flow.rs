@@ -14,8 +14,9 @@ fn node(id: &str, harness: &str) -> NodeInfo {
         role: String::new(),
         output_tail: vec![],
         unread: 0,
-        tokens_in: 0,
-        tokens_out: 0,
+        turns: 0,
+        busy_ms: 0,
+        tokens: 0,
         cost_usd: 0.0,
     }
 }
@@ -149,18 +150,100 @@ fn terminal_control_codes_never_reach_the_canvas() {
     assert_eq!(strip_ansi(""), "");
 }
 
+/// What a CLI prints is the session so far, not the last turn. Adding those
+/// up would climb by the whole session's cost every time the screen is read.
 #[test]
-fn usage_accumulates_across_turns() {
+fn a_screen_total_replaces_rather_than_accumulates() {
+    use agent_canvas_lib::usage::Reading;
     let bus = BusShared::new();
     bus.register_node(node("a", "claude"));
 
-    bus.add_usage("a", 1200, 300, 0.021);
-    bus.add_usage("a", 800, 150, 0.009);
+    bus.observe_usage(
+        "a",
+        Reading {
+            tokens: 1200,
+            cost_usd: 0.021,
+        },
+    );
+    bus.observe_usage(
+        "a",
+        Reading {
+            tokens: 2000,
+            cost_usd: 0.030,
+        },
+    );
 
     let n = bus.get_node("a").unwrap();
-    assert_eq!(n.tokens_in, 2000);
-    assert_eq!(n.tokens_out, 450);
+    assert_eq!(n.tokens, 2000);
     assert!((n.cost_usd - 0.030).abs() < 1e-9, "cost was {}", n.cost_usd);
+}
+
+/// A total that scrolls off screen must not reset what was already seen.
+#[test]
+fn a_reading_never_walks_a_total_backwards() {
+    use agent_canvas_lib::usage::Reading;
+    let bus = BusShared::new();
+    bus.register_node(node("a", "claude"));
+
+    bus.observe_usage(
+        "a",
+        Reading {
+            tokens: 5000,
+            cost_usd: 0.40,
+        },
+    );
+    bus.observe_usage(
+        "a",
+        Reading {
+            tokens: 0,
+            cost_usd: 0.0,
+        },
+    );
+
+    let n = bus.get_node("a").unwrap();
+    assert_eq!(n.tokens, 5000);
+    assert!((n.cost_usd - 0.40).abs() < 1e-9);
+}
+
+#[test]
+fn turns_are_counted_per_agent_and_across_the_canvas() {
+    let bus = BusShared::new();
+    bus.register_node(node("a", "claude"));
+    bus.register_node(node("b", "codex"));
+
+    for _ in 0..3 {
+        assert!(!bus.note_turn("a"), "the cap is nowhere near");
+    }
+    bus.note_turn("b");
+
+    assert_eq!(bus.get_node("a").unwrap().turns, 3);
+    assert_eq!(bus.get_node("b").unwrap().turns, 1);
+    let (turns, _, _) = bus.spend();
+    assert_eq!(turns, 4);
+}
+
+#[test]
+fn the_canvas_says_when_it_crosses_its_turn_budget_and_only_then() {
+    let bus = BusShared::new();
+    bus.register_node(node("a", "claude"));
+    *bus.turn_cap.lock() = 3;
+
+    assert!(!bus.note_turn("a"));
+    assert!(!bus.note_turn("a"));
+    assert!(bus.note_turn("a"), "the third turn is the cap");
+    assert!(
+        !bus.note_turn("a"),
+        "past the cap it must not fire again, or every turn stops the canvas"
+    );
+}
+
+#[test]
+fn busy_time_adds_up() {
+    let bus = BusShared::new();
+    bus.register_node(node("a", "claude"));
+    bus.add_busy("a", 150);
+    bus.add_busy("a", 150);
+    assert_eq!(bus.get_node("a").unwrap().busy_ms, 300);
 }
 
 /// Two agents can talk each other in circles forever, and every round trip is

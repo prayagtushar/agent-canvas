@@ -181,8 +181,22 @@ fn watch_loop(shared: &Arc<crate::bus::BusShared>, id: &str, sess: &Arc<Session>
 
             let now = if quiet < QUIET_MS { "running" } else { "idle" };
             if now != reported {
+                // Going from idle to working is a turn, whoever started it —
+                // the canvas, a peer, or the operator typing into the
+                // terminal. Nothing else counts them all.
+                if now == "running" && sh.note_turn(&nid) {
+                    sh.notice(
+                        &nid,
+                        "The canvas has hit its turn budget and stopped. \
+Raise it in Settings if this is work you meant to keep doing.",
+                    );
+                    sh.emit("bus-event", serde_json::json!({ "kind": "budget" }));
+                }
                 sh.set_status(&nid, now);
                 reported = now.to_string();
+            }
+            if now == "running" {
+                sh.add_busy(&nid, TICK.as_millis() as u64);
             }
 
             // Refresh what peers can read, on a timer rather than per chunk —
@@ -190,6 +204,11 @@ fn watch_loop(shared: &Arc<crate::bus::BusShared>, id: &str, sess: &Arc<Session>
             if tail_at.elapsed() >= Duration::from_millis(600) {
                 tail_at = Instant::now();
                 let text = sess.screen.lock().screen().contents();
+                // Whatever the CLI happens to print about what it has spent.
+                // Most print nothing, which is why turns are counted above.
+                if let Some(reading) = crate::usage::read(&text) {
+                    sh.observe_usage(&nid, reading);
+                }
                 sh.set_output_tail(&nid, &text);
             }
         }
