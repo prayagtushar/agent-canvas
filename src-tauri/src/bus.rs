@@ -13,6 +13,11 @@ pub struct NodeInfo {
     pub harness: String,
     pub cwd: String,
     pub status: String,
+    /// What this agent is for, in a few words. Peers read it out of
+    /// `list_peers`, which is how a canvas of agents becomes a team rather
+    /// than a row of identical CLIs.
+    #[serde(default)]
+    pub role: String,
     pub output_tail: Vec<String>,
     pub unread: u32,
     /// Cumulative usage reported by the harness, when it reports any.
@@ -41,6 +46,11 @@ pub struct Task {
     pub status: String,
     pub owner: Option<String>,
     pub result: String,
+    /// The order the task was added in. `tasks` is a map, so without this
+    /// `list_tasks` hands back a different order every call — and "claim the
+    /// first one that is open" is the whole protocol.
+    #[serde(default)]
+    pub seq: u64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -69,6 +79,12 @@ pub struct BusShared {
     /// Bus stops relaying once the count reaches the cap.
     pub msg_count: Mutex<u32>,
     pub msg_cap: Mutex<u32>,
+    /// Whether an agent may start another agent. An orchestrator that can
+    /// staff its own team is the point of the canvas, and it is also real
+    /// processes and real money, so the operator holds the switch.
+    pub allow_hiring: Mutex<bool>,
+    /// The most agents allowed on the canvas at once, however they got there.
+    pub agent_cap: Mutex<u32>,
     pub memory: Mutex<HashMap<String, MemoryEntry>>,
     pub nodes: Mutex<HashMap<String, NodeInfo>>,
     pub edges: Mutex<Vec<(String, String)>>,
@@ -83,6 +99,11 @@ pub struct BusShared {
 /// Chosen to be generous for real work but low enough that a runaway loop
 /// costs cents, not hundreds of dollars.
 pub const DEFAULT_MSG_CAP: u32 = 200;
+
+/// How many agents may be on the canvas at once. High enough for any team
+/// worth running, low enough that an orchestrator with a bad plan cannot
+/// start forty processes while you are making coffee.
+pub const DEFAULT_AGENT_CAP: u32 = 8;
 
 /// Remove terminal control sequences. Agent CLIs colour their output and
 /// redraw spinners with escape codes; pasted into a plain <pre> those show up
@@ -165,6 +186,8 @@ impl BusShared {
             auto_comm: Mutex::new(true),
             msg_count: Mutex::new(0),
             msg_cap: Mutex::new(DEFAULT_MSG_CAP),
+            allow_hiring: Mutex::new(true),
+            agent_cap: Mutex::new(DEFAULT_AGENT_CAP),
             memory: Mutex::new(HashMap::new()),
             nodes: Mutex::new(HashMap::new()),
             edges: Mutex::new(Vec::new()),
@@ -190,8 +213,62 @@ impl BusShared {
         self.nodes.lock().insert(info.id.clone(), info);
     }
 
+    /// Tell the canvas about a node it did not launch itself. Only the
+    /// hiring path needs this: everything else is put on the canvas by the
+    /// operator, who already knows.
+    pub fn announce_node(&self, info: &NodeInfo) {
+        self.emit(
+            "bus-event",
+            serde_json::json!({ "kind": "node", "node": info }),
+        );
+    }
+
+    pub fn emit_edges(&self) {
+        let edges: Vec<[String; 2]> = self
+            .edges
+            .lock()
+            .iter()
+            .map(|(a, b)| [a.clone(), b.clone()])
+            .collect();
+        self.emit(
+            "bus-event",
+            serde_json::json!({ "kind": "edges", "edges": edges }),
+        );
+    }
+
+    /// Join two nodes and tell the canvas. Returns false if they were already
+    /// joined, which is not an error: the caller wanted them connected.
+    pub fn connect(&self, a: &str, b: &str) -> bool {
+        if a == b || self.connected(a, b) {
+            return false;
+        }
+        self.edges.lock().push((a.to_string(), b.to_string()));
+        self.emit_edges();
+        true
+    }
+
     pub fn get_node(&self, node_id: &str) -> Option<NodeInfo> {
         self.nodes.lock().get(node_id).cloned()
+    }
+
+    /// The longest name a node may carry. A label is drawn in a header and
+    /// read back by peers; there is no use for one longer than this.
+    pub const MAX_LABEL: usize = 40;
+
+    /// Give a node a new name. Peers read this name out of `list_peers`, so a
+    /// rename cannot be a frontend-only label: both views must agree.
+    pub fn rename_node(&self, node_id: &str, label: &str) -> Result<String, String> {
+        let label = label.trim();
+        if label.is_empty() {
+            return Err("a name cannot be empty".to_string());
+        }
+        let label: String = label.chars().take(Self::MAX_LABEL).collect();
+        let mut nodes = self.nodes.lock();
+        let node = nodes
+            .get_mut(node_id)
+            .ok_or_else(|| format!("no agent called {node_id}"))?;
+        node.label = label.clone();
+        Ok(label)
     }
 
     pub fn set_status(&self, node_id: &str, status: &str) {
@@ -222,24 +299,40 @@ impl BusShared {
         );
     }
 
-    pub fn push_output(&self, node_id: &str, chunk: &str) {
-        let chunk = &strip_ansi(chunk);
-        for line in chunk.lines() {
-            if line.trim().is_empty() {
-                continue;
-            }
-            if let Some(n) = self.nodes.lock().get_mut(node_id) {
-                n.output_tail.push(line.to_string());
-                let len = n.output_tail.len();
-                if len > 300 {
-                    n.output_tail.drain(0..len - 300);
-                }
-            }
-        }
+    /// Raw pty bytes, handed to the frontend untouched. The node renders them
+    /// with a terminal emulator, so the escape codes are the content.
+    pub fn push_raw(&self, node_id: &str, chunk: &str) {
         self.emit(
             "agent-output",
             serde_json::json!({ "nodeId": node_id, "chunk": chunk }),
         );
+    }
+
+    /// What a peer reads when it asks what this agent is doing: the agent's
+    /// screen as it stands, rather than the repaints that produced it.
+    pub fn set_output_tail(&self, node_id: &str, screen: &str) {
+        let mut lines: Vec<String> = screen.lines().map(|l| l.trim_end().to_string()).collect();
+        while lines.last().is_some_and(String::is_empty) {
+            lines.pop();
+        }
+        if let Some(n) = self.nodes.lock().get_mut(node_id) {
+            n.output_tail = lines;
+        }
+    }
+
+    /// Something the operator has to see about one node. Not output: this is
+    /// the canvas speaking, not the agent.
+    pub fn notice(&self, node_id: &str, text: &str) {
+        self.emit(
+            "bus-event",
+            serde_json::json!({ "kind": "notice", "node": node_id, "text": text }),
+        );
+    }
+
+    pub fn clear_unread(&self, node_id: &str) {
+        if let Some(n) = self.nodes.lock().get_mut(node_id) {
+            n.unread = 0;
+        }
     }
 
     pub fn connected(&self, a: &str, b: &str) -> bool {
@@ -326,6 +419,7 @@ impl BusShared {
     }
 
     pub fn add_task(&self, creator: &str, title: &str, details: &str) -> Task {
+        static SEQ: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
         let task = Task {
             id: new_id("task"),
             title: title.to_string(),
@@ -333,6 +427,7 @@ impl BusShared {
             status: "todo".to_string(),
             owner: None,
             result: String::new(),
+            seq: SEQ.fetch_add(1, std::sync::atomic::Ordering::Relaxed),
         };
         self.tasks.lock().insert(task.id.clone(), task.clone());
         self.emit(
@@ -348,7 +443,31 @@ impl BusShared {
     }
 
     pub fn list_tasks(&self) -> Vec<Task> {
-        self.tasks.lock().values().cloned().collect()
+        let mut tasks: Vec<Task> = self.tasks.lock().values().cloned().collect();
+        tasks.sort_by_key(|t| t.seq);
+        tasks
+    }
+
+    /// Take a task off the board. A claimed one is somebody's current work,
+    /// so it stays: the operator can ask that agent to stop instead.
+    pub fn remove_task(&self, task_id: &str) -> Result<Task, String> {
+        let mut tasks = self.tasks.lock();
+        let t = tasks
+            .get(task_id)
+            .ok_or_else(|| format!("task {task_id} not found"))?;
+        if t.status == "claimed" {
+            return Err(format!(
+                "{} is working on that task; interrupt them first",
+                t.owner.clone().unwrap_or_default()
+            ));
+        }
+        let t = tasks.remove(task_id).expect("just looked it up");
+        drop(tasks);
+        self.emit(
+            "bus-event",
+            serde_json::json!({ "kind": "task", "action": "removed", "task": t }),
+        );
+        Ok(t)
     }
 
     pub fn claim_task(&self, task_id: &str, node_id: &str) -> Result<Task, String> {
@@ -503,6 +622,9 @@ impl BusShared {
             "autoComm": *self.auto_comm.lock(),
             "sent": *self.msg_count.lock(),
             "cap": *self.msg_cap.lock(),
+            "hiring": *self.allow_hiring.lock(),
+            "agents": self.nodes.lock().len(),
+            "agentCap": *self.agent_cap.lock(),
         })
     }
 

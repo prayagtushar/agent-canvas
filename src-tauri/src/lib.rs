@@ -1,7 +1,10 @@
 pub mod bus;
 pub mod mcp;
+pub mod platform;
+pub mod pty;
 pub mod server;
 pub mod spawn;
+pub mod worktree;
 
 use bus::{BusShared, NodeInfo};
 use serde_json::{json, Value};
@@ -17,8 +20,9 @@ fn add_agent(
     harness: String,
     cwd: String,
     prompt: String,
+    role: String,
 ) -> Result<Option<NodeInfo>, String> {
-    let id = spawn::launch_agent(&shared, label, harness, cwd, prompt)?;
+    let id = spawn::launch_agent(&shared, label, harness, cwd, prompt, role)?;
     Ok(shared.get_node(&id))
 }
 
@@ -35,6 +39,40 @@ fn interrupt_agent(shared: State<'_, Shared>, id: String) -> Result<(), String> 
 #[tauri::command]
 fn kill_agent(shared: State<'_, Shared>, id: String) -> Result<(), String> {
     spawn::kill(&shared, &id)
+}
+
+#[tauri::command]
+fn restart_agent(shared: State<'_, Shared>, id: String) -> Result<(), String> {
+    spawn::restart(&shared, &id)
+}
+
+/// Rename an agent. The name is what the operator calls it in a prompt and
+/// what its peers see in `list_peers`, so it lives on the Bus, not the canvas.
+#[tauri::command]
+fn rename_agent(shared: State<'_, Shared>, id: String, label: String) -> Result<String, String> {
+    shared.rename_node(&id, &label)
+}
+
+/// Keystrokes from a node's terminal, straight through to the CLI. This is
+/// arrow keys and Escape as much as it is letters, so nothing is interpreted
+/// on the way.
+#[tauri::command]
+fn agent_input(id: String, data: String) -> Result<(), String> {
+    spawn::write_input(&id, &data)
+}
+
+/// The node's terminal has been measured or resized; tell the pty, so the CLI
+/// reflows to the shape the operator actually gave it.
+#[tauri::command]
+fn agent_resize(id: String, cols: u16, rows: u16) -> Result<(), String> {
+    spawn::resize(&id, cols, rows)
+}
+
+/// Everything known about the CLIs on this machine: installed, version, path,
+/// and how the Bus reaches each one.
+#[tauri::command]
+fn diagnose_harnesses() -> Vec<Value> {
+    spawn::diagnose()
 }
 
 #[tauri::command]
@@ -55,74 +93,36 @@ fn default_workspace_root() -> String {
         .unwrap_or_else(|| "/".to_string())
 }
 
-fn git(repo: &str, args: &[&str]) -> Result<String, String> {
-    let out = std::process::Command::new("git")
-        .arg("-C")
-        .arg(repo)
-        .args(args)
-        .output()
-        .map_err(|e| format!("git not available: {e}"))?;
-    if out.status.success() {
-        Ok(String::from_utf8_lossy(&out.stdout).trim().to_string())
-    } else {
-        Err(String::from_utf8_lossy(&out.stderr).trim().to_string())
-    }
-}
-
 #[tauri::command]
 fn is_git_repo(path: String) -> bool {
-    git(&path, &["rev-parse", "--is-inside-work-tree"]).as_deref() == Ok("true")
+    worktree::is_git_repo(path)
 }
 
-/// Give an agent its own worktree so two agents editing the same repo cannot
-/// collide. Worktrees live under `.agent-canvas/worktrees/` inside the repo.
 #[tauri::command]
 fn create_worktree(repo: String, name: String) -> Result<String, String> {
-    if !is_git_repo(repo.clone()) {
-        return Err(format!("{repo} is not a git repository"));
-    }
-    let slug: String = name
-        .chars()
-        .map(|c| {
-            if c.is_ascii_alphanumeric() || c == '-' {
-                c
-            } else {
-                '-'
-            }
-        })
-        .collect::<String>()
-        .trim_matches('-')
-        .to_lowercase();
-    let slug = if slug.is_empty() {
-        "agent".to_string()
-    } else {
-        slug
-    };
-
-    let root = git(&repo, &["rev-parse", "--show-toplevel"])?;
-    let dir = std::path::Path::new(&root)
-        .join(".agent-canvas")
-        .join("worktrees")
-        .join(&slug);
-    let dir_str = dir.to_string_lossy().to_string();
-    if dir.is_dir() {
-        return Ok(dir_str);
-    }
-    std::fs::create_dir_all(dir.parent().unwrap_or(&dir)).map_err(|e| e.to_string())?;
-
-    let branch = format!("agent/{slug}");
-    let exists = git(&repo, &["rev-parse", "--verify", &branch]).is_ok();
-    if exists {
-        git(&repo, &["worktree", "add", &dir_str, &branch])?;
-    } else {
-        git(&repo, &["worktree", "add", "-b", &branch, &dir_str])?;
-    }
-    Ok(dir_str)
+    worktree::create_worktree(repo, name)
 }
 
 #[tauri::command]
 fn remove_worktree(repo: String, path: String) -> Result<(), String> {
-    git(&repo, &["worktree", "remove", "--force", &path]).map(|_| ())
+    worktree::remove_worktree(repo, path)
+}
+
+/// Write a session report to a path the operator picked in the save dialog.
+///
+/// Deliberately narrow: it writes text to one path the user chose, and nothing
+/// in the frontend can turn it into a general file-writing tool by passing a
+/// different extension or a directory.
+#[tauri::command]
+fn export_report(path: String, contents: String) -> Result<(), String> {
+    let path = std::path::PathBuf::from(&path);
+    if path.extension().and_then(|e| e.to_str()) != Some("md") {
+        return Err("a report is written as a .md file".to_string());
+    }
+    if path.is_dir() {
+        return Err(format!("{} is a folder", path.display()));
+    }
+    std::fs::write(&path, contents).map_err(|e| format!("{}: {e}", path.display()))
 }
 
 #[tauri::command]
@@ -136,6 +136,14 @@ fn set_auto_comm(shared: State<'_, Shared>, on: bool) {
     shared.emit_comm();
 }
 
+/// Whether an agent may start another agent. Real processes and real money,
+/// so it is the operator's switch, not a setting an agent can reach.
+#[tauri::command]
+fn set_allow_hiring(shared: State<'_, Shared>, on: bool) {
+    *shared.allow_hiring.lock() = on;
+    shared.emit_comm();
+}
+
 #[tauri::command]
 fn set_message_cap(shared: State<'_, Shared>, cap: u32) {
     *shared.msg_cap.lock() = cap;
@@ -146,6 +154,31 @@ fn set_message_cap(shared: State<'_, Shared>, cap: u32) {
 fn reset_message_count(shared: State<'_, Shared>) {
     *shared.msg_count.lock() = 0;
     shared.emit_comm();
+}
+
+/// The operator putting work on the shared board themselves, rather than
+/// waiting for an agent to think of it.
+#[tauri::command]
+fn add_task(
+    shared: State<'_, Shared>,
+    title: String,
+    details: String,
+) -> Result<bus::Task, String> {
+    let title = title.trim();
+    if title.is_empty() {
+        return Err("a task needs a title".to_string());
+    }
+    Ok(shared.add_task("operator", title, details.trim()))
+}
+
+#[tauri::command]
+fn remove_task(shared: State<'_, Shared>, id: String) -> Result<(), String> {
+    shared.remove_task(&id).map(|_| ())
+}
+
+#[tauri::command]
+fn list_tasks(shared: State<'_, Shared>) -> Vec<bus::Task> {
+    shared.list_tasks()
 }
 
 #[tauri::command]
@@ -202,16 +235,6 @@ fn get_bus_info(shared: State<'_, Shared>) -> Value {
     })
 }
 
-fn emit_edges(shared: &Shared) {
-    let edges = shared
-        .edges
-        .lock()
-        .iter()
-        .map(|(a, b)| [a.clone(), b.clone()])
-        .collect::<Vec<_>>();
-    shared.emit("bus-event", json!({ "kind": "edges", "edges": edges }));
-}
-
 #[tauri::command]
 fn add_edge(shared: State<'_, Shared>, a: String, b: String) -> Result<(), String> {
     if a == b {
@@ -224,7 +247,7 @@ fn add_edge(shared: State<'_, Shared>, a: String, b: String) -> Result<(), Strin
         return Err("edge already exists".to_string());
     }
     shared.edges.lock().push((a.clone(), b.clone()));
-    emit_edges(&shared);
+    shared.emit_edges();
     Ok(())
 }
 
@@ -234,7 +257,7 @@ fn remove_edge(shared: State<'_, Shared>, a: String, b: String) -> Result<(), St
         .edges
         .lock()
         .retain(|(x, y)| !((x == &a && y == &b) || (x == &b && y == &a)));
-    emit_edges(&shared);
+    shared.emit_edges();
     Ok(())
 }
 
@@ -243,6 +266,7 @@ pub fn run() {
     let shared_for_setup = shared.clone();
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_notification::init())
         .manage(shared.clone())
         .setup(move |app| {
             *shared_for_setup.app.lock() = Some(app.handle().clone());
@@ -263,7 +287,13 @@ pub fn run() {
             send_prompt,
             interrupt_agent,
             kill_agent,
+            restart_agent,
+            rename_agent,
+            export_report,
+            agent_input,
+            agent_resize,
             list_harnesses,
+            diagnose_harnesses,
             save_workspace,
             load_workspace,
             answer_approval,
@@ -276,9 +306,13 @@ pub fn run() {
             remove_worktree,
             get_comm_state,
             set_auto_comm,
+            set_allow_hiring,
             set_message_cap,
             reset_message_count,
             list_memory,
+            add_task,
+            remove_task,
+            list_tasks,
             forget_memory,
             remember,
         ])

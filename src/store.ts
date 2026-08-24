@@ -7,14 +7,19 @@ import {
   type EdgeChange,
   type ReactFlowInstance,
 } from "@xyflow/react";
+import { save } from "@tauri-apps/plugin-dialog";
 import { api } from "./api";
+import { buildReport, reportFilename } from "./report";
+import { away, notify as sendDesktopNotification } from "./notify";
+import * as terminals from "./terminals";
 import type {
+  Activity,
+  Team,
   Approval,
   CanvasNode,
   HarnessInfo,
   CommState,
   MemoryEntry,
-  Usage,
   NodeInfo,
   Task,
   Theme,
@@ -23,8 +28,9 @@ import type {
 
 export const EDGE_STYLE = { stroke: "var(--wire)", strokeWidth: 1.7 };
 
-/** Characters of agent output kept per node. Past this the front is dropped. */
-const SCROLLBACK = 24000;
+/** A new agent window. Sized so the CLI inside it gets the ~80 columns its
+ *  layout is drawn for, rather than one it has to fold everything into. */
+export const NODE_SIZE = { width: 624, height: 392 };
 
 /** Pixels of each window edge covered by floating chrome: title bar and comm
    chips on top, the rail on the left, the toolbar and command bar below. */
@@ -33,18 +39,35 @@ const CHROME = { top: 76, right: 26, bottom: 112, left: 62 };
 /** Breathing room between the chrome and the outermost node. */
 const GUTTER = 22;
 
+/** When this canvas opened. The session report measures from here. */
+const SESSION_STARTED = Date.now();
+
 let toastSeq = 0;
 let pendingSeq = 0;
+let activitySeq = 0;
 
 /** Must match the `.toast.leaving` animation in styles.css. */
 const TOAST_EXIT_MS = 200;
 
+/** Peer traffic worth keeping in the panel. Older lines fall off the top. */
+const ACTIVITY_MAX = 200;
+
+/** Prompts the operator has sent, recalled with ↑ in the command bar. */
+const HISTORY_MAX = 50;
+const HISTORY_KEY = "ac.history";
+
+function readHistory(): string[] {
+  try {
+    const raw = JSON.parse(localStorage.getItem(HISTORY_KEY) ?? "[]") as unknown;
+    return Array.isArray(raw) ? raw.filter((x): x is string => typeof x === "string") : [];
+  } catch {
+    return [];
+  }
+}
+
 interface StoreState {
   nodes: CanvasNode[];
   edges: Edge[];
-  outputs: Record<string, string>;
-  /** Lines dropped off the front of each transcript, so line keys stay stable. */
-  trimmed: Record<string, number>;
   statuses: Record<string, string>;
   unread: Record<string, number>;
   tasks: Task[];
@@ -57,6 +80,9 @@ interface StoreState {
   tint: number;
   focus: boolean;
   shortcutsOpen: boolean;
+  diagnosticsOpen: boolean;
+  /** Tell the desktop when something needs the operator and they are away. */
+  notifications: boolean;
   theme: Theme;
   /** Folder agents are launched in. Chosen by the operator, never assumed. */
   workspaceRoot: string;
@@ -64,7 +90,15 @@ interface StoreState {
   useWorktrees: boolean;
   memory: MemoryEntry[];
   comm: CommState;
-  usage: Record<string, Usage>;
+  /** Send the next prompt to every agent rather than the selected one. */
+  broadcast: boolean;
+  /** Every message that has crossed a wire this session, oldest first. */
+  activity: Activity[];
+  activityOpen: boolean;
+  /** Activity entries the operator has not seen, for the titlebar count. */
+  activitySeen: number;
+  /** Prompts already sent, newest first. Recalled with ↑ and persisted. */
+  history: string[];
   /** Per-wire message counter. Bumping one replays the bead on that wire. */
   pulses: Record<string, { seq: number; reverse: boolean }>;
   /** Set on canvas init so anything can frame the view. */
@@ -78,17 +112,23 @@ interface StoreState {
   addAgentCanvasNode: (info: NodeInfo, at?: { x: number; y: number }) => string;
   addNote: (text?: string) => void;
   addTaskBoard: () => void;
-  launchAgent: (harness: string, label?: string, prompt?: string) => Promise<string | null>;
+  launchAgent: (
+    harness: string,
+    label?: string,
+    prompt?: string,
+    role?: string
+  ) => Promise<string | null>;
+  launchTeam: (team: Team) => Promise<void>;
+  teamFromCanvas: (label: string) => Team | null;
   removeNode: (id: string) => void;
 
-  appendOutput: (nodeId: string, chunk: string) => void;
-  appendOutputs: (batch: Record<string, string>) => void;
   setStatus: (nodeId: string, status: string) => void;
   bumpUnread: (nodeId: string) => void;
-  clearUnread: (nodeId: string) => void;
-  clearOutputs: () => void;
+  clearTerminals: () => void;
 
   upsertTask: (t: Task) => void;
+  dropTask: (id: string) => void;
+  refreshTasks: () => Promise<void>;
   upsertApproval: (a: Approval) => void;
   removeApproval: (id: string) => void;
 
@@ -101,15 +141,23 @@ interface StoreState {
   setTint: (t: number) => void;
   setFocus: (v: boolean) => void;
   setShortcutsOpen: (v: boolean) => void;
+  setDiagnosticsOpen: (v: boolean) => void;
+  setNotifications: (v: boolean) => void;
   setTheme: (t: Theme) => void;
   setWorkspaceRoot: (p: string) => void;
   setUseWorktrees: (v: boolean) => void;
   setMemory: (m: MemoryEntry[]) => void;
   setComm: (c: CommState) => void;
-  addUsage: (nodeId: string, u: Usage) => void;
   pulseWire: (from: string, to: string) => void;
   setFlow: (f: ReactFlowInstance<CanvasNode, Edge>) => void;
   frameAll: () => void;
+  revealNode: (id: string) => void;
+  setBroadcast: (v: boolean) => void;
+  logMessage: (from: string, to: string, text: string) => void;
+  setActivityOpen: (v: boolean) => void;
+  clearActivity: () => void;
+  pushHistory: (text: string) => void;
+  labelOf: (id: string) => string;
   promptAll: (text: string) => number;
   refreshComm: () => Promise<void>;
   addMemoryNode: () => void;
@@ -117,6 +165,7 @@ interface StoreState {
   loadHarnesses: () => Promise<void>;
   edgesChanged: (pairs: [string, string][]) => void;
 
+  exportReport: () => Promise<void>;
   saveWorkspace: (silent?: boolean) => Promise<void>;
   restoreWorkspace: () => Promise<void>;
 }
@@ -146,13 +195,74 @@ function nodesBox(nodes: CanvasNode[]) {
   return { x: minX, y: minY, width: maxX - minX, height: maxY - minY };
 }
 
+/** Whether a node answers to what the operator typed in the search box. One
+ *  definition, so the count in the toolbar and the nodes that light up on the
+ *  canvas can never disagree. */
+export function matchesSearch(node: CanvasNode, query: string): boolean {
+  const q = query.trim().toLowerCase();
+  if (!q) return false;
+  if (node.type === "agent") {
+    return (
+      node.data.label.toLowerCase().includes(q) ||
+      node.data.harness.toLowerCase().includes(q)
+    );
+  }
+  if (node.type === "note") return node.data.note.toLowerCase().includes(q) || "note".includes(q);
+  if (node.type === "taskboard") return "project card tasks".includes(q);
+  return "shared memory".includes(q);
+}
+
+/* The part of the window nothing is floating over. The canvas fills the
+   window and the title bar, rail, toolbar and command bar sit on top of it,
+   so anything centred in the window itself lands under the chrome. */
+function freeArea(): { x: number; y: number; w: number; h: number } | null {
+  const pane = document.querySelector(".react-flow");
+  if (!pane) return null;
+  const { width, height } = pane.getBoundingClientRect();
+  if (width === 0 || height === 0) return null;
+  // The traffic panel is only sometimes there, so it is measured rather than
+  // assumed: with it open, the right edge of the free area moves in.
+  const dock = document.querySelector(".right-dock");
+  const docked = (dock?.childElementCount ?? 0) > 0;
+  const right = CHROME.right + (docked ? dock!.getBoundingClientRect().width + GUTTER : 0);
+  return {
+    x: CHROME.left + GUTTER,
+    y: CHROME.top + GUTTER,
+    w: Math.max(160, width - CHROME.left - right - GUTTER * 2),
+    h: Math.max(160, height - CHROME.top - CHROME.bottom - GUTTER * 2),
+  };
+}
+
+/** Call-signs for new agents. Launching two Claude agents used to put two
+ *  windows called "claude" on the canvas, which made them impossible to tell
+ *  apart, to search for, or to name in a prompt. Which CLI each one runs is
+ *  on its header tag either way. */
+const CALL_SIGNS = [
+  "Orion", "Juno", "Vega", "Atlas", "Nova", "Rigel",
+  "Lyra", "Mira", "Sol", "Pax", "Echo", "Iris",
+];
+
+function nextAgentName(nodes: CanvasNode[], harness: string): string {
+  const taken = new Set(
+    nodes.filter((n) => n.type === "agent").map((n) => n.data.label)
+  );
+  const free = CALL_SIGNS.find((name) => !taken.has(name));
+  if (free) return free;
+  let n = 2;
+  while (taken.has(`${harness}-${n}`)) n++;
+  return `${harness}-${n}`;
+}
+
 /* Where the next agent window goes: two columns, stepped slightly right on
    each new row so a deep canvas still reads as a stack of pairs. */
 function agentSlot(nodes: CanvasNode[]): { x: number; y: number } {
   const count = nodes.filter((n) => n.type === "agent").length;
   const col = count % 2;
   const row = Math.floor(count / 2);
-  return { x: 80 + col * 560 + row * 40, y: 70 + row * 392 };
+  return {
+    x: 80 + col * (NODE_SIZE.width + 44) + row * 40,
+    y: 70 + row * (NODE_SIZE.height + 44),
+  };
 }
 
 /* Right edge of everything currently placed, so new items land beside the
@@ -167,8 +277,6 @@ function rightEdge(nodes: CanvasNode[]): number {
 export const useStore = create<StoreState>()((set, get) => ({
   nodes: [],
   edges: [],
-  outputs: {},
-  trimmed: {},
   statuses: {},
   unread: {},
   tasks: [],
@@ -181,12 +289,18 @@ export const useStore = create<StoreState>()((set, get) => ({
   tint: Number(localStorage.getItem("ac.tint") ?? 0.36),
   focus: false,
   shortcutsOpen: false,
+  diagnosticsOpen: false,
+  notifications: localStorage.getItem("ac.notifications") !== "0",
   theme: (localStorage.getItem("ac.theme") as Theme) ?? "midnight",
   workspaceRoot: localStorage.getItem("ac.workspaceRoot") ?? "",
   useWorktrees: localStorage.getItem("ac.useWorktrees") === "1",
   memory: [],
-  comm: { autoComm: true, sent: 0, cap: 200 },
-  usage: {},
+  comm: { autoComm: true, sent: 0, cap: 200, hiring: true, agents: 0, agentCap: 8 },
+  broadcast: false,
+  activity: [],
+  activityOpen: false,
+  activitySeen: 0,
+  history: readHistory(),
   pulses: {},
   flow: null,
 
@@ -208,13 +322,14 @@ export const useStore = create<StoreState>()((set, get) => ({
       id,
       type: "agent",
       position: at ?? agentSlot(get().nodes),
-      style: { width: 512, height: 336 },
+      style: { width: NODE_SIZE.width, height: NODE_SIZE.height },
       data: {
         nodeId: info.id,
         label: info.label,
         harness: info.harness,
         cwd: info.cwd,
-        status: "idle",
+        status: info.status ?? "idle",
+        role: info.role ?? "",
       },
     };
     set((s) => ({ nodes: [...s.nodes.filter((n) => n.id !== id), node] }));
@@ -248,13 +363,13 @@ export const useStore = create<StoreState>()((set, get) => ({
     set((s) => ({ nodes: [...s.nodes, node] }));
   },
 
-  launchAgent: async (harness, label, prompt = "") => {
+  launchAgent: async (harness, label, prompt = "", role = "") => {
     const { workspaceRoot, useWorktrees, nodes } = get();
     if (!workspaceRoot) {
       get().pushToast("err", "Choose a working folder first — the folder button in the toolbar.");
       return null;
     }
-    const name = label || harness;
+    const name = label || nextAgentName(nodes, harness);
 
     // Put a stand-in on the canvas before doing any of the slow work. Adding a
     // worktree runs git and starting an agent spawns a process, so without
@@ -268,19 +383,23 @@ export const useStore = create<StoreState>()((set, get) => ({
           id: holder,
           type: "agent",
           position: slot,
-          style: { width: 512, height: 336 },
+          style: { width: NODE_SIZE.width, height: NODE_SIZE.height },
           data: {
             nodeId: holder,
             label: name,
             harness,
             cwd: workspaceRoot,
             status: "starting",
+            role,
             pending: true,
           },
         } as CanvasNode,
       ],
     }));
-    get().frameAll();
+    // Show the new window without re-framing the canvas: reframing shrinks
+    // every terminal a little more with each launch, and moves the one the
+    // operator was reading. `revealNode` only pans, and only if it has to.
+    setTimeout(() => get().revealNode(holder), 80);
     const dropHolder = () =>
       set((s) => ({ nodes: s.nodes.filter((n) => n.id !== holder) }));
 
@@ -301,7 +420,7 @@ export const useStore = create<StoreState>()((set, get) => ({
     }
 
     try {
-      const info = await api.addAgent({ label: name, harness, cwd, prompt });
+      const info = await api.addAgent({ label: name, harness, cwd, prompt, role });
       if (!info) {
         dropHolder();
         get().pushToast("err", `Could not start ${harness}.`);
@@ -318,10 +437,107 @@ export const useStore = create<StoreState>()((set, get) => ({
     }
   },
 
+  /** Launch a whole team: every member, then the wires between them.
+   *
+   *  Members start one at a time on purpose. Each one spawns a process and
+   *  writes config, and a CLI that comes up while three others are still
+   *  starting is the case where prompts got swallowed. */
+  launchTeam: async (team) => {
+    const { workspaceRoot, harnesses } = get();
+    if (!workspaceRoot) {
+      get().pushToast("err", "Choose a working folder first — the folder button in the toolbar.");
+      return;
+    }
+    const installed = harnesses.filter((h) => h.available);
+    if (installed.length === 0) {
+      get().pushToast("err", "No agent CLIs found on your PATH.");
+      return;
+    }
+
+    // A template names the CLI it was written for. If that one is missing,
+    // the team still runs — a review pair with two of the same CLI is worth
+    // more than an error message.
+    const pick = (want: string) =>
+      installed.find((h) => h.name === want)?.name ?? installed[0].name;
+
+    const ids: (string | null)[] = [];
+    for (const m of team.members) {
+      ids.push(await get().launchAgent(pick(m.harness), m.name, m.brief, m.role));
+    }
+
+    const started = ids.filter((id): id is string => id !== null);
+    if (started.length === 0) {
+      get().pushToast("err", `${team.label} did not start.`);
+      return;
+    }
+
+    let wired = 0;
+    for (const [a, b] of team.wires) {
+      const from = ids[a];
+      const to = ids[b];
+      if (!from || !to) continue;
+      try {
+        await api.addEdge(from, to);
+        wired++;
+      } catch {
+        /* the Bus refused this pair; the others still stand */
+      }
+    }
+
+    get().frameAll();
+    get().pushToast(
+      started.length === team.members.length ? "ok" : "err",
+      `${team.label}: ${started.length} of ${team.members.length} agents, ${wired} connected.`
+    );
+  },
+
+  /** Capture what is on the canvas as a team that can be launched again.
+   *
+   *  Agent processes do not survive a restart, so this is how a canvas the
+   *  operator liked comes back: the same roles, wired the same way. */
+  teamFromCanvas: (label) => {
+    const { nodes, edges } = get();
+    const agents = nodes.filter(
+      (n): n is import("./types").AgentFlowNode => n.type === "agent" && !n.data.pending
+    );
+    if (agents.length === 0) return null;
+
+    const index = new Map(agents.map((a, i) => [a.id, i]));
+    const wires: [number, number][] = [];
+    for (const e of edges) {
+      const a = index.get(e.source);
+      const b = index.get(e.target);
+      if (a !== undefined && b !== undefined) wires.push([a, b]);
+    }
+
+    return {
+      id: `saved-${Date.now()}`,
+      label,
+      blurb: `${agents.length} agent${agents.length === 1 ? "" : "s"}, ${wires.length} connection${wires.length === 1 ? "" : "s"}`,
+      saved: true,
+      members: agents.map((a) => ({
+        harness: a.data.harness,
+        name: a.data.label,
+        role: a.data.role ?? "",
+        // Roles were the point of saving this, so relaunching restates them.
+        brief: a.data.role
+          ? `You are the ${a.data.label} on this canvas. Your role: ${a.data.role}. Do not start work yet. Reply with one line confirming your role, then wait.`
+          : "",
+      })),
+      wires,
+    };
+  },
+
   removeNode: (id) => {
     const node = get().nodes.find((n) => n.id === id);
     if (node?.type === "agent" && !node.data.pending) {
       void api.killAgent(node.data.nodeId).catch(() => undefined);
+      terminals.dispose(node.data.nodeId);
+      // The worktree stays: it may hold work that was never committed, and
+      // deleting an agent is not a request to throw that away. Say where.
+      if (node.data.worktree) {
+        get().pushToast("ok", `${node.data.label} stopped. Its worktree is still at ${node.data.worktree}`);
+      }
     }
     set((s) => ({
       nodes: s.nodes.filter((n) => n.id !== id),
@@ -330,42 +546,25 @@ export const useStore = create<StoreState>()((set, get) => ({
     }));
   },
 
-  appendOutput: (nodeId, chunk) => get().appendOutputs({ [nodeId]: chunk }),
+  /* Also where "the work finished" is detected. Every status change passes
+     through here, so the moment the last busy agent goes quiet is exactly the
+     transition from some-busy to none-busy — the one thing worth telling
+     somebody who has walked away from the window. */
+  setStatus: (nodeId, status) => {
+    const busy = (map: Record<string, string>) =>
+      Object.values(map).filter((v) => v === "running" || v === "waiting").length;
+    const before = busy(get().statuses);
+    set((s) => ({ statuses: { ...s.statuses, [nodeId]: status } }));
+    const after = busy(get().statuses);
 
-  /* One store write for a whole frame's worth of output from every agent.
-     Agent CLIs emit in small bursts, and a `set` per chunk had each node
-     re-rendering its entire transcript dozens of times a second. */
-  appendOutputs: (batch) =>
-    set((s) => {
-      const outputs = { ...s.outputs };
-      let trimmed: Record<string, number> | null = null;
-
-      for (const nodeId of Object.keys(batch)) {
-        const next = (s.outputs[nodeId] ?? "") + batch[nodeId];
-        if (next.length <= SCROLLBACK) {
-          outputs[nodeId] = next;
-          continue;
-        }
-        // Drop from the front on a line boundary, and count the lines that
-        // went. The transcript keys lines by absolute position in the stream;
-        // without this count every trim would renumber the whole buffer and
-        // replay the arrival animation across all of it.
-        const cut = next.slice(-SCROLLBACK);
-        const nl = cut.indexOf("\n");
-        const tail = nl >= 0 ? cut.slice(nl + 1) : cut;
-        const dropped = next.slice(0, next.length - tail.length);
-        let lines = 0;
-        for (let i = 0; i < dropped.length; i++) if (dropped[i] === "\n") lines++;
-        outputs[nodeId] = tail;
-        trimmed = trimmed ?? { ...s.trimmed };
-        trimmed[nodeId] = (s.trimmed[nodeId] ?? 0) + lines;
-      }
-
-      return trimmed ? { outputs, trimmed } : { outputs };
-    }),
-
-  setStatus: (nodeId, status) =>
-    set((s) => ({ statuses: { ...s.statuses, [nodeId]: status } })),
+    if (before > 0 && after === 0 && get().notifications && away()) {
+      const n = get().nodes.filter((x) => x.type === "agent" && !x.data.pending).length;
+      void sendDesktopNotification(
+        "Agent Canvas",
+        n === 1 ? "Your agent has finished." : `All ${n} agents are idle.`
+      );
+    }
+  },
 
   bumpUnread: (nodeId) =>
     set((s) => {
@@ -373,10 +572,9 @@ export const useStore = create<StoreState>()((set, get) => ({
       return { unread: { ...s.unread, [nodeId]: (s.unread[nodeId] ?? 0) + 1 } };
     }),
 
-  clearUnread: (nodeId) =>
-    set((s) => (s.unread[nodeId] ? { unread: { ...s.unread, [nodeId]: 0 } } : s)),
-
-  clearOutputs: () => set({ outputs: {}, trimmed: {} }),
+  /* Wipes what every terminal is holding without touching the sessions
+     behind them: the agents keep running, their scrollback does not. */
+  clearTerminals: () => terminals.clearAll(),
 
   upsertTask: (t) =>
     set((s) => {
@@ -386,6 +584,18 @@ export const useStore = create<StoreState>()((set, get) => ({
       tasks[idx] = { ...tasks[idx], ...t };
       return { tasks };
     }),
+
+  dropTask: (id) => set((s) => ({ tasks: s.tasks.filter((t) => t.id !== id) })),
+
+  /** The board as the Bus has it, in the order it was built. Read once at
+   *  startup; after that the `task` events keep it current. */
+  refreshTasks: async () => {
+    try {
+      set({ tasks: await api.listTasks() });
+    } catch {
+      /* the Bus may not be up yet */
+    }
+  },
 
   upsertApproval: (a) =>
     set((s) => {
@@ -416,11 +626,31 @@ export const useStore = create<StoreState>()((set, get) => ({
     );
   },
 
+  /* Selection is also what the command bar talks to, so picking a window
+     takes the bar out of Everyone mode: one idea of "the agent I am on".
+     ReactFlow keeps its own `selected` flag per node and that is what draws
+     the ring and the resize handles, so selecting from anywhere else — a
+     number key, the target picker, a search hit — has to set it too. */
   setSelected: (id) =>
     set((s) => {
-      if (id === null) return s.selectedNodeId === null ? s : { selectedNodeId: null };
-      if (s.selectedNodeId === id) return s;
-      return { selectedNodeId: id, unread: { ...s.unread, [id]: 0 } };
+      const mark = (nodes: CanvasNode[]) =>
+        nodes.some((n) => !!n.selected !== (n.id === id))
+          ? nodes.map((n) => ({ ...n, selected: n.id === id }))
+          : nodes;
+      if (id === null) {
+        return s.selectedNodeId === null && s.nodes === mark(s.nodes)
+          ? s
+          : { selectedNodeId: null, nodes: mark(s.nodes) };
+      }
+      if (s.selectedNodeId === id) {
+        return { nodes: mark(s.nodes), ...(s.broadcast ? { broadcast: false } : {}) };
+      }
+      return {
+        selectedNodeId: id,
+        broadcast: false,
+        nodes: mark(s.nodes),
+        unread: { ...s.unread, [id]: 0 },
+      };
     }),
 
   setZoom: (z) => set({ zoom: Math.round(z) }),
@@ -434,6 +664,13 @@ export const useStore = create<StoreState>()((set, get) => ({
   setFocus: (focus) => set({ focus }),
 
   setShortcutsOpen: (shortcutsOpen) => set({ shortcutsOpen }),
+
+  setDiagnosticsOpen: (diagnosticsOpen) => set({ diagnosticsOpen }),
+
+  setNotifications: (notifications) => {
+    localStorage.setItem("ac.notifications", notifications ? "1" : "0");
+    set({ notifications });
+  },
 
   setTheme: (theme) => {
     localStorage.setItem("ac.theme", theme);
@@ -463,18 +700,10 @@ export const useStore = create<StoreState>()((set, get) => ({
     if (!flow) return;
     // A beat, so nodes added in the same tick are in the DOM to be measured.
     setTimeout(() => {
-      const pane = document.querySelector(".react-flow");
       const box = nodesBox(get().nodes);
-      if (!pane || !box || box.width === 0 || box.height === 0) return;
+      const free = freeArea();
+      if (!free || !box || box.width === 0 || box.height === 0) return;
 
-      const { width, height } = pane.getBoundingClientRect();
-
-      const free = {
-        x: CHROME.left + GUTTER,
-        y: CHROME.top + GUTTER,
-        w: Math.max(160, width - CHROME.left - CHROME.right - GUTTER * 2),
-        h: Math.max(160, height - CHROME.top - CHROME.bottom - GUTTER * 2),
-      };
       const zoom = Math.min(free.w / box.width, free.h / box.height, 1);
       void flow.setViewport(
         {
@@ -490,34 +719,98 @@ export const useStore = create<StoreState>()((set, get) => ({
     }, 60);
   },
 
-  /** Send one prompt to every idle agent. Returns how many got it. */
-  promptAll: (text) => {
-    const { nodes, statuses } = get();
-    const targets = nodes
-      .filter((n): n is import("./types").AgentFlowNode => n.type === "agent")
-      .filter((n) => statuses[n.data.nodeId] !== "running");
-    targets.forEach((n) =>
-      api.sendPrompt(n.data.nodeId, text).catch(() => undefined)
+  /** Bring one node into view without changing the zoom the operator chose.
+   *  A node already fully visible is left exactly where it is: panning the
+   *  canvas under someone who can already see the thing is disorienting. */
+  revealNode: (id) => {
+    const flow = get().flow;
+    if (!flow) return;
+    const el = document.querySelector<HTMLElement>(
+      `.react-flow__node[data-id="${CSS.escape(id)}"]`
     );
+    const node = get().nodes.find((n) => n.id === id);
+    const free = freeArea();
+    if (!el || !node || !free) return;
+
+    const { zoom, x, y } = flow.getViewport();
+    const w = el.offsetWidth * zoom;
+    const h = el.offsetHeight * zoom;
+    const left = node.position.x * zoom + x;
+    const top = node.position.y * zoom + y;
+
+    const inside =
+      left >= free.x &&
+      top >= free.y &&
+      left + w <= free.x + free.w &&
+      top + h <= free.y + free.h;
+    if (inside) return;
+
+    void flow.setViewport(
+      {
+        zoom,
+        x: free.x + (free.w - w) / 2 - node.position.x * zoom,
+        y: free.y + (free.h - h) / 2 - node.position.y * zoom,
+      },
+      { duration: document.hidden ? 0 : 260 }
+    );
+  },
+
+  setBroadcast: (broadcast) => set({ broadcast }),
+
+  /** Keep the operator's own copy of a message that crossed a wire. The
+   *  agents receive these as typed input; nothing else records them. */
+  logMessage: (from, to, text) =>
+    set((s) => {
+      const next = [...s.activity, { id: ++activitySeq, from, to, text, ts: Date.now() }];
+      return {
+        activity: next.length > ACTIVITY_MAX ? next.slice(-ACTIVITY_MAX) : next,
+        activitySeen: s.activityOpen ? next.length : s.activitySeen,
+      };
+    }),
+
+  setActivityOpen: (activityOpen) =>
+    set((s) => ({
+      activityOpen,
+      activitySeen: activityOpen ? s.activity.length : s.activitySeen,
+      // The panel is where those messages are read, so the badges that were
+      // pointing at them have done their job.
+      unread: activityOpen ? {} : s.unread,
+    })),
+
+  clearActivity: () => set({ activity: [], activitySeen: 0 }),
+
+  pushHistory: (text) =>
+    set((s) => {
+      const history = [text, ...s.history.filter((h) => h !== text)].slice(0, HISTORY_MAX);
+      try {
+        localStorage.setItem(HISTORY_KEY, JSON.stringify(history));
+      } catch {
+        /* a full or disabled store must not lose the prompt itself */
+      }
+      return { history };
+    }),
+
+  /** The name the operator gave a node, for anything that has only its id. */
+  labelOf: (id) => {
+    const node = get().nodes.find((n) => n.id === id);
+    return node && node.type === "agent" ? node.data.label : id;
+  },
+
+  /** Send one prompt to every agent. Returns how many got it.
+   *
+   *  A busy agent is included: the pty queues a prompt and types it in when
+   *  its CLI goes quiet, so skipping busy agents would drop the message for
+   *  exactly the agents most likely to be mid-task. */
+  promptAll: (text) => {
+    const targets = get()
+      .nodes.filter((n): n is import("./types").AgentFlowNode => n.type === "agent")
+      .filter((n) => !n.data.pending);
+    targets.forEach((n) => api.sendPrompt(n.data.nodeId, text).catch(() => undefined));
     return targets.length;
   },
 
   setComm: (comm) => set({ comm }),
 
-  addUsage: (nodeId, u) =>
-    set((s) => {
-      const prev = s.usage[nodeId] ?? { tokensIn: 0, tokensOut: 0, costUsd: 0 };
-      return {
-        usage: {
-          ...s.usage,
-          [nodeId]: {
-            tokensIn: prev.tokensIn + u.tokensIn,
-            tokensOut: prev.tokensOut + u.tokensOut,
-            costUsd: prev.costUsd + u.costUsd,
-          },
-        },
-      };
-    }),
 
   /** Fire the travelling bead on the wire joining two agents. The Bus stores
    *  peers as unordered pairs, so the wire may be drawn either way round;
@@ -583,6 +876,48 @@ export const useStore = create<StoreState>()((set, get) => ({
       })),
     })),
 
+  /** Write down what this session did, somewhere the operator can share it.
+   *
+   *  The transcripts come from the emulators rather than the Bus: the Bus
+   *  keeps only the current screen, and a report of a finished session wants
+   *  the whole scrollback. */
+  exportReport: async () => {
+    const s = get();
+    const at = Date.now();
+    const transcripts: Record<string, string> = {};
+    for (const n of s.nodes) {
+      if (n.type === "agent" && !n.data.pending) {
+        transcripts[n.data.nodeId] = terminals.textOf(n.data.nodeId);
+      }
+    }
+
+    const markdown = buildReport({
+      workspaceRoot: s.workspaceRoot,
+      startedAt: SESSION_STARTED,
+      endedAt: at,
+      nodes: s.nodes,
+      edges: s.edges.map((e) => ({ source: e.source, target: e.target })),
+      statuses: s.statuses,
+      activity: s.activity,
+      tasks: s.tasks,
+      memory: s.memory,
+      transcripts,
+    });
+
+    try {
+      const path = await save({
+        title: "Save the session report",
+        defaultPath: reportFilename(s.workspaceRoot, at),
+        filters: [{ name: "Markdown", extensions: ["md"] }],
+      });
+      if (!path) return;
+      await api.exportReport(path, markdown);
+      get().pushToast("ok", `Report saved to ${path.split("/").pop()}.`);
+    } catch (e) {
+      get().pushToast("err", `Report not saved — ${String(e)}`);
+    }
+  },
+
   saveWorkspace: async (silent = false) => {
     const { nodes, edges, tint } = get();
     const json = JSON.stringify({
@@ -620,7 +955,12 @@ export const useStore = create<StoreState>()((set, get) => ({
       const restorable = (file.nodes ?? []).filter(
         (n) => n.type === "note" || n.type === "taskboard" || n.type === "memory"
       ) as unknown as CanvasNode[];
-      if (restorable.length) set({ nodes: restorable });
+      if (restorable.length) {
+        set({ nodes: restorable });
+        // They were saved wherever the canvas was last panned to, which may be
+        // nowhere near the default viewport. Show them.
+        get().frameAll();
+      }
     } catch {
       /* a corrupt workspace should never block startup */
     }

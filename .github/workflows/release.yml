@@ -1,0 +1,96 @@
+name: Release
+
+# Push a tag to cut a release:
+#
+#   npm version 0.2.0 --no-git-tag-version   # keep package.json and Cargo.toml in step
+#   git commit -am "Release 0.2.0" && git tag v0.2.0 && git push --follow-tags
+#
+# Every platform builds in parallel and uploads into one draft release. Check
+# it, then publish by hand — nothing goes out without a person looking first.
+#
+# Running this by hand from the Actions tab builds the same bundles and leaves
+# them as workflow artifacts instead, which is how you check a build without
+# cutting a release.
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # One download for both Apple architectures. Slower to build than
+          # two separate ones, and worth it: nobody should have to know
+          # whether their Mac is Intel or Apple silicon.
+          - name: macOS (universal)
+            os: macos-latest
+            target: universal-apple-darwin
+            rust-targets: aarch64-apple-darwin,x86_64-apple-darwin
+          - name: Windows (x64)
+            os: windows-latest
+            target: x86_64-pc-windows-msvc
+            rust-targets: x86_64-pc-windows-msvc
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.rust-targets }}
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+          key: ${{ matrix.target }}
+
+      - run: npm ci
+
+      # A broken bundle is worse than a late one: the same checks CI runs on
+      # every push, run again on the thing that is actually being shipped.
+      - run: npm run typecheck
+      - run: npm run test:web
+
+      - uses: tauri-apps/tauri-action@v0
+        id: tauri
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          # Empty on a manual run, which tells tauri-action to build without
+          # touching releases.
+          tagName: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || '' }}
+          releaseName: Agent Canvas ${{ github.ref_name }}
+          releaseBody: |
+            Download the file for your machine below, then see
+            [Installing](https://github.com/prayagtushar/agent-canvas#installing).
+
+            These builds are not code-signed, so macOS and Windows will both
+            warn you the first time you open the app. The Installing section
+            says exactly which warning you will get and how to get past it.
+
+            Agent Canvas runs the agent CLIs you already have installed. It
+            does not ship or download any of them.
+          releaseDraft: true
+          prerelease: false
+          args: --target ${{ matrix.target }}
+
+      # Manual runs have nowhere to upload to, so keep the bundles here.
+      - if: ${{ !startsWith(github.ref, 'refs/tags/') }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: agent-canvas-${{ matrix.target }}
+          path: ${{ join(fromJSON(steps.tauri.outputs.artifactPaths), '\n') }}
+          if-no-files-found: error
+          retention-days: 7

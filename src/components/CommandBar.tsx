@@ -8,7 +8,6 @@ const SUGGESTIONS = [
   "Try “add a gemini agent named Juno”",
   "Try “connect them”",
   "Try “note: check the migration before merging”",
-  "Try “all: run the tests and report back”",
   "Try “stop”",
 ];
 
@@ -19,22 +18,49 @@ const HARNESS_WORDS: [RegExp, string][] = [
   [/open\s?code/i, "opencode"],
 ];
 
+const HARNESS_DOT: Record<string, string> = {
+  claude: "var(--h-claude)",
+  codex: "var(--h-codex)",
+  gemini: "var(--h-gemini)",
+  opencode: "var(--h-opencode)",
+};
+
 export default function CommandBar() {
   const [text, setText] = useState("");
   const [flash, setFlash] = useState<string | null>(null);
   const [sugIdx, setSugIdx] = useState(0);
+  const [pickerOpen, setPickerOpen] = useState(false);
+  /** How far back through history ↑ has walked. -1 is the live draft. */
+  const [recall, setRecall] = useState(-1);
   const inputRef = useRef<HTMLInputElement>(null);
+  const targetRef = useRef<HTMLDivElement>(null);
 
   const nodes = useStore((s) => s.nodes);
   const harnesses = useStore((s) => s.harnesses);
   const launchAgent = useStore((s) => s.launchAgent);
   const addNote = useStore((s) => s.addNote);
   const addTaskBoard = useStore((s) => s.addTaskBoard);
-  const clearOutputs = useStore((s) => s.clearOutputs);
+  const clearTerminals = useStore((s) => s.clearTerminals);
   const selectedNodeId = useStore((s) => s.selectedNodeId);
+  const setSelected = useStore((s) => s.setSelected);
+  const revealNode = useStore((s) => s.revealNode);
   const statuses = useStore((s) => s.statuses);
   const pushToast = useStore((s) => s.pushToast);
   const promptAll = useStore((s) => s.promptAll);
+  const broadcast = useStore((s) => s.broadcast);
+  const setBroadcast = useStore((s) => s.setBroadcast);
+  const history = useStore((s) => s.history);
+  const pushHistory = useStore((s) => s.pushHistory);
+
+  const agents = nodes.filter(
+    (n): n is AgentFlowNode => n.type === "agent" && !n.data.pending
+  );
+  // With one agent on the canvas there is nothing to disambiguate, so the bar
+  // talks to it whether or not the operator has clicked its window.
+  const target = broadcast
+    ? null
+    : agents.find((a) => a.data.nodeId === selectedNodeId) ??
+      (agents.length === 1 ? agents[0] : null);
 
   useEffect(() => {
     const t = setInterval(() => setSugIdx((i) => (i + 1) % SUGGESTIONS.length), 4600);
@@ -47,10 +73,18 @@ export default function CommandBar() {
     return () => clearTimeout(t);
   }, [flash]);
 
-  const agents = nodes.filter((n): n is AgentFlowNode => n.type === "agent");
+  useEffect(() => {
+    if (!pickerOpen) return;
+    const close = (e: MouseEvent) => {
+      if (!targetRef.current?.contains(e.target as Node)) setPickerOpen(false);
+    };
+    window.addEventListener("mousedown", close);
+    return () => window.removeEventListener("mousedown", close);
+  }, [pickerOpen]);
 
   const say = (m: string) => {
     setText("");
+    setRecall(-1);
     setFlash(m);
   };
 
@@ -66,11 +100,11 @@ export default function CommandBar() {
     );
     const [a, b] =
       named.length >= 2
-        ? [named[0].data.nodeId, named[1].data.nodeId]
-        : [agents[agents.length - 2].data.nodeId, agents[agents.length - 1].data.nodeId];
+        ? [named[0], named[1]]
+        : [agents[agents.length - 2], agents[agents.length - 1]];
     try {
-      await api.addEdge(a, b);
-      say(`Connected ${a} and ${b}.`);
+      await api.addEdge(a.data.nodeId, b.data.nodeId);
+      say(`Connected ${a.data.label} and ${b.data.label}.`);
     } catch (e) {
       pushToast("err", String(e));
     }
@@ -107,12 +141,13 @@ export default function CommandBar() {
     const raw = text.trim();
     if (!raw) return;
     const lower = raw.toLowerCase();
+    pushHistory(raw);
 
-    // "all: <prompt>" or "everyone: <prompt>" fans out to every idle agent
-    const broadcast = raw.match(/^(?:all|everyone|broadcast)\s*[:,]?\s+(.+)$/i)?.[1];
-    if (broadcast) {
-      const n = promptAll(broadcast);
-      say(n ? `Sent to ${n} agent${n === 1 ? "" : "s"}.` : "No idle agents to send to.");
+    // "all: <prompt>" still works, and so does the Everyone target.
+    const prefixed = raw.match(/^(?:all|everyone|broadcast)\s*[:,]?\s+(.+)$/i)?.[1];
+    if (prefixed || (broadcast && !isCanvasCommand(lower))) {
+      const n = promptAll(prefixed ?? raw);
+      say(n ? `Sent to ${n} agent${n === 1 ? "" : "s"}.` : "No agents to send to.");
       return;
     }
 
@@ -139,7 +174,7 @@ export default function CommandBar() {
     }
 
     if (/^(clear|wipe)\b/i.test(lower)) {
-      clearOutputs();
+      clearTerminals();
       say("Cleared all output.");
       return;
     }
@@ -156,16 +191,40 @@ export default function CommandBar() {
       return;
     }
 
-    // Anything else goes to the selected agent as a prompt.
-    if (selectedNodeId && agents.some((n) => n.data.nodeId === selectedNodeId)) {
-      void api.sendPrompt(selectedNodeId, raw).catch((e) => pushToast("err", String(e)));
-      const label = agents.find((n) => n.data.nodeId === selectedNodeId)?.data.label;
-      say(`Sent to ${label}.`);
+    // Anything else goes to the agent named in the target chip.
+    if (target) {
+      void api.sendPrompt(target.data.nodeId, raw).catch((e) => pushToast("err", String(e)));
+      say(`Sent to ${target.data.label}.`);
       return;
     }
 
-    pushToast("err", "Select an agent to prompt it, or start with “add … agent”.");
+    pushToast(
+      "err",
+      agents.length
+        ? "Pick an agent in the bar below, or click its window first."
+        : "Launch an agent before prompting one."
+    );
   };
+
+  /** Walk the history of sent prompts. Leaves an unsent draft alone. */
+  const step = (delta: number) => {
+    if (history.length === 0) return;
+    const next = Math.min(history.length - 1, Math.max(-1, recall + delta));
+    setRecall(next);
+    setText(next === -1 ? "" : history[next]);
+    // Put the caret at the end of what was just recalled, not where it was.
+    requestAnimationFrame(() => {
+      const el = inputRef.current;
+      if (el) el.selectionStart = el.selectionEnd = el.value.length;
+    });
+  };
+
+  const targetLabel = broadcast ? "Everyone" : target ? target.data.label : "Pick an agent";
+  const placeholder = broadcast
+    ? `Message all ${agents.length} agent${agents.length === 1 ? "" : "s"}`
+    : target
+      ? `Message ${target.data.label}`
+      : SUGGESTIONS[sugIdx];
 
   return (
     <>
@@ -176,24 +235,91 @@ export default function CommandBar() {
           onKeyDown={(e) => {
             e.stopPropagation();
             if (e.key === "Enter") void submit();
+            else if (e.key === "ArrowUp") {
+              e.preventDefault();
+              step(1);
+            } else if (e.key === "ArrowDown") {
+              e.preventDefault();
+              step(-1);
+            }
           }}
         >
-          <span className="cmd-dot" title="The Bus is running" />
-          <span className="cmd-clip" title="Attachments are not supported yet">
-            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M21.4 11.05 12.25 20.2a6 6 0 0 1-8.49-8.49l8.49-8.48a4 4 0 1 1 5.66 5.65L9.17 17.2a2 2 0 1 1-2.83-2.83l7.78-7.78" />
-            </svg>
-          </span>
+          <div className="cmd-target-wrap" ref={targetRef}>
+            <button
+              className={`cmd-target ${broadcast ? "is-all" : ""} ${target || broadcast ? "" : "is-none"}`}
+              title="Choose who this goes to"
+              onClick={() => setPickerOpen(!pickerOpen)}
+            >
+              <span
+                className="cmd-target-dot"
+                style={{
+                  background: broadcast
+                    ? "var(--wire)"
+                    : target
+                      ? HARNESS_DOT[target.data.harness] ?? "var(--dim)"
+                      : "var(--dim)",
+                }}
+              />
+              <span className="cmd-target-name">{targetLabel}</span>
+              <span className="caret">▾</span>
+            </button>
+            {pickerOpen && (
+              <div className="cmd-picker">
+                <div className="menu-head">Send to</div>
+                {agents.map((a) => (
+                  <button
+                    key={a.id}
+                    className="menu-item"
+                    onClick={() => {
+                      setBroadcast(false);
+                      setSelected(a.id);
+                      revealNode(a.id);
+                      setPickerOpen(false);
+                      inputRef.current?.focus();
+                    }}
+                  >
+                    <span className="cmd-pick-name">
+                      <span
+                        className="cmd-target-dot"
+                        style={{ background: HARNESS_DOT[a.data.harness] ?? "var(--dim)" }}
+                      />
+                      {a.data.label}
+                    </span>
+                    {!broadcast && target?.id === a.id && <span className="tick">✓</span>}
+                  </button>
+                ))}
+                {agents.length === 0 && (
+                  <div className="menu-item muted">No agents running yet</div>
+                )}
+                <div className="menu-sep" />
+                <button
+                  className="menu-item"
+                  onClick={() => {
+                    setBroadcast(true);
+                    setPickerOpen(false);
+                    inputRef.current?.focus();
+                  }}
+                >
+                  <span>Everyone</span>
+                  {broadcast ? <span className="tick">✓</span> : <span className="muted small">{agents.length}</span>}
+                </button>
+              </div>
+            )}
+          </div>
           <input
             ref={inputRef}
             className="cmd-input"
-            placeholder={SUGGESTIONS[sugIdx]}
+            placeholder={placeholder}
             value={text}
-            onChange={(e) => setText(e.target.value)}
+            onChange={(e) => {
+              setText(e.target.value);
+              setRecall(-1);
+            }}
           />
           <button
             className="cmd-send"
-            title="Run"
+            title="Send"
+            aria-label="Send"
             disabled={!text.trim()}
             onClick={() => void submit()}
           >
@@ -201,13 +327,21 @@ export default function CommandBar() {
               <path d="M12 19V5M5 12l7-7 7 7" />
             </svg>
           </button>
-          <button className="cmd-collapse" title="Dismiss" onClick={() => inputRef.current?.blur()}>
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
-              <path d="m18 15-6-6-6 6" />
-            </svg>
-          </button>
         </div>
       </div>
     </>
+  );
+}
+
+/** Sentences the bar acts on itself. In Everyone mode these still drive the
+ *  canvas rather than being typed into ten terminals at once. */
+function isCanvasCommand(lower: string): boolean {
+  return (
+    /^note\b/.test(lower) ||
+    /^(clear|wipe)\b/.test(lower) ||
+    /^(stop|interrupt|kill|halt)\b/.test(lower) ||
+    /\b(project card|task ?board)\b/.test(lower) ||
+    (/\b(add|launch|start|spawn|create)\b/.test(lower) && /\bagents?\b/.test(lower)) ||
+    /\b(connect|link)\b/.test(lower)
   );
 }

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { api } from "../api";
 import { useStore } from "../store";
+import WindowControls, { isWindows } from "./WindowControls";
 import type { AgentFlowNode } from "../types";
 
 function Icon({ d, size = 14 }: { d: string; size?: number }) {
@@ -24,6 +25,9 @@ const AGENTS = "M17 20v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M9.5 10a4 4 0 1 0 0-8 4
 const SAVE = "M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2zM17 21v-8H7v8M7 3v5h8";
 const LINK = "M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7";
 const RELOAD = "M21 12a9 9 0 1 1-2.6-6.4M21 3v6h-6";
+const TRAFFIC = "M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z";
+const KEYS = "M4 6h16v12H4zM8 10h.01M12 10h.01M16 10h.01M8 14h8";
+const REPORT = "M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8zM14 2v6h6M9 13h6M9 17h6";
 
 export default function TitleBar() {
   const [menuOpen, setMenuOpen] = useState(false);
@@ -35,8 +39,13 @@ export default function TitleBar() {
   const focus = useStore((s) => s.focus);
   const setFocus = useStore((s) => s.setFocus);
   const pushToast = useStore((s) => s.pushToast);
-  const clearOutputs = useStore((s) => s.clearOutputs);
   const saveWorkspace = useStore((s) => s.saveWorkspace);
+  const workspaceRoot = useStore((s) => s.workspaceRoot);
+  const activityOpen = useStore((s) => s.activityOpen);
+  const setActivityOpen = useStore((s) => s.setActivityOpen);
+  const unseen = useStore((s) => s.activity.length - s.activitySeen);
+  const setShortcutsOpen = useStore((s) => s.setShortcutsOpen);
+  const exportReport = useStore((s) => s.exportReport);
 
   useEffect(() => {
     if (!menuOpen) return;
@@ -68,7 +77,7 @@ export default function TitleBar() {
   };
 
   return (
-    <div className="titlebar">
+    <div className={`titlebar ${isWindows ? "own-frame" : ""}`}>
       <span className="tb-logo" aria-hidden="true">
         <svg width="17" height="17" viewBox="0 0 1024 1024">
           <g stroke="#4d97ff" strokeWidth="88" strokeLinecap="round" fill="none">
@@ -83,7 +92,9 @@ export default function TitleBar() {
         </svg>
       </span>
       <span className="tb-name">Agent Canvas</span>
-      <span className="tb-workspace">untitled workspace</span>
+      <span className="tb-workspace" title={workspaceRoot || "No folder chosen yet"}>
+        {workspaceRoot ? workspaceRoot.split("/").filter(Boolean).pop() : "no folder yet"}
+      </span>
       <div className="tb-spacer" data-tauri-drag-region />
       <div className="tb-cluster">
         <span
@@ -95,6 +106,14 @@ export default function TitleBar() {
           {agents.length}
           {running > 0 && <b style={{ color: "var(--live)" }}>·{running}</b>}
         </span>
+        <button
+          className={`tb-btn ${activityOpen ? "is-on" : ""}`}
+          title="What the agents have said to each other (⌘J)"
+          onClick={() => setActivityOpen(!activityOpen)}
+        >
+          <Icon d={TRAFFIC} size={13} /> Traffic
+          {unseen > 0 && <span className="tb-count">{unseen}</span>}
+        </button>
         <button className="tb-btn" title="Save workspace (⌘S)" onClick={() => void save()}>
           <Icon d={SAVE} size={13} /> Save
         </button>
@@ -110,12 +129,23 @@ export default function TitleBar() {
               <button
                 className="menu-item"
                 onClick={() => {
-                  clearOutputs();
                   setMenuOpen(false);
-                  pushToast("ok", "Output cleared.");
+                  void exportReport();
                 }}
               >
-                Clear all output
+                <span>Export session report…</span>
+                <Icon d={REPORT} size={12} />
+              </button>
+              <div className="menu-sep" />
+              <button
+                className="menu-item"
+                onClick={() => {
+                  setMenuOpen(false);
+                  setShortcutsOpen(true);
+                }}
+              >
+                <span>Keyboard shortcuts</span>
+                <Icon d={KEYS} size={12} />
               </button>
               <div className="menu-sep" />
               <button className="menu-item" onClick={() => window.location.reload()}>
@@ -138,7 +168,8 @@ export default function TitleBar() {
           Focus
         </button>
         <span className="tb-btn tb-zoom">{zoom}%</span>
-        <span className="tb-avatar" />
+        {!isWindows && <span className="tb-avatar" />}
+        <WindowControls />
       </div>
     </div>
   );

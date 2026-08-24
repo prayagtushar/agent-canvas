@@ -8,8 +8,33 @@ export interface NodeInfo {
   harness: string;
   cwd: string;
   status: string;
+  /** What this agent is for. Peers read it out of `list_peers`. */
+  role?: string;
   output_tail: string[];
   unread: number;
+}
+
+/** One agent in a team template. */
+export interface TeamMember {
+  /** Preferred CLI. Falls back to whatever is installed. */
+  harness: string;
+  name: string;
+  /** A few words, shown on the node and handed to peers. */
+  role: string;
+  /** Typed into the CLI once it comes up. */
+  brief: string;
+}
+
+/** A set of agents, their roles, and the wires between them. */
+export interface Team {
+  id: string;
+  label: string;
+  blurb: string;
+  members: TeamMember[];
+  /** Pairs of indices into `members`. */
+  wires: [number, number][];
+  /** Set on teams the operator saved off their own canvas. */
+  saved?: boolean;
 }
 
 export interface Task {
@@ -19,6 +44,8 @@ export interface Task {
   status: "todo" | "claimed" | "done";
   owner: string | null;
   result: string;
+  /** The order it was added in. The board reads in this order. */
+  seq?: number;
 }
 
 export interface Approval {
@@ -26,6 +53,16 @@ export interface Approval {
   fromNode: string;
   question: string;
   answer: string | null;
+}
+
+/** One message that travelled a wire. The agents themselves see these as
+ *  text typed into their terminals; this is the operator's copy. */
+export interface Activity {
+  id: number;
+  from: string;
+  to: string;
+  text: string;
+  ts: number;
 }
 
 export interface Toast {
@@ -46,16 +83,28 @@ export interface HarnessInfo {
   bus: boolean;
 }
 
-export interface Usage {
-  tokensIn: number;
-  tokensOut: number;
-  costUsd: number;
+/** One row of the diagnostics sheet. */
+export interface HarnessDiagnosis {
+  name: string;
+  label: string;
+  installed: boolean;
+  /** First line of `<cli> --version`, empty if it did not answer. */
+  version: string;
+  path: string;
+  bus: boolean;
+  /** How the Bus reaches this CLI, in the operator's words. */
+  wiring: string;
 }
 
 export interface CommState {
   autoComm: boolean;
   sent: number;
   cap: number;
+  /** Whether an agent may start another agent. */
+  hiring: boolean;
+  /** Agents on the canvas now, and the most allowed at once. */
+  agents: number;
+  agentCap: number;
 }
 
 export interface MemoryEntry {
@@ -97,11 +146,20 @@ export const THEMES: { id: Theme; label: string; swatch: string }[] = [
 
 export type BusEvent =
   | { kind: "message"; from: string; to: string; text: string }
-  | { kind: "task"; action: "added" | "claimed" | "done"; task: Task; by?: string }
+  | {
+      kind: "task";
+      action: "added" | "claimed" | "done" | "removed";
+      task: Task;
+      by?: string;
+    }
   | { kind: "approval"; approval: Approval }
   | { kind: "edges"; edges: [string, string][] }
   | { kind: "memory"; memory: MemoryEntry[] }
-  | { kind: "comm"; comm: CommState };
+  | { kind: "comm"; comm: CommState }
+  | { kind: "notice"; node: string; text: string }
+  /** An agent another agent started. The canvas did not launch it, so this
+   *  is the only way it learns the node exists. */
+  | { kind: "node"; node: NodeInfo };
 
 export type AgentData = {
   nodeId: string;
@@ -109,6 +167,8 @@ export type AgentData = {
   harness: string;
   cwd: string;
   status: string;
+  /** What this agent is for, if it was launched with a role. */
+  role?: string;
   /** Set when this agent runs in its own git worktree. */
   worktree?: string;
   /** A stand-in shown while the process starts. Has no Bus node behind it. */

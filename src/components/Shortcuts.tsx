@@ -3,14 +3,19 @@ import { useStore } from "../store";
 
 const KEYS: [string, string][] = [
   ["⌘K", "Focus the command bar"],
+  ["↑ / ↓", "Recall a prompt you already sent"],
+  ["⌘1…9", "Go to that agent and type in it"],
+  ["⌘[ / ⌘]", "Previous / next agent"],
+  ["⌘0", "Fit everything on screen"],
+  ["⌘J", "Show what the agents said to each other"],
+  ["⌘F", "Find an agent or note, Enter walks the matches"],
   ["⌘S", "Save the workspace"],
-  ["⌘F", "Find an agent or note"],
   ["⌘.", "Interrupt everything running"],
   ["⌘\\", "Toggle Focus mode"],
   ["?", "Show this list"],
-  ["Esc", "Clear search, close menus"],
-  ["Right-click", "Node and canvas menus"],
-  ["Drag a green dot", "Connect two agents"],
+  ["Esc", "Clear search, close panels"],
+  ["Right-click", "Connect agents, and the canvas menu"],
+  ["Double-click a name", "Rename that agent"],
 ];
 
 export default function Shortcuts() {

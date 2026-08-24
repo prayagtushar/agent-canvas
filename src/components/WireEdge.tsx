@@ -46,7 +46,6 @@ function borderPoint(from: InternalNode<Node>, to: InternalNode<Node>) {
 function sideOf(node: InternalNode<Node>, p: { x: number; y: number }): Position {
   const { x, y } = node.internals.positionAbsolute;
   const w = node.measured.width ?? 0;
-  const h = node.measured.height ?? 0;
   if (p.x <= x + 1) return Position.Left;
   if (p.x >= x + w - 1) return Position.Right;
   if (p.y <= y + 1) return Position.Top;

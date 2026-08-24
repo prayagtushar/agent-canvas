@@ -6,7 +6,6 @@ import {
   ReactFlow,
   type Connection,
   type Edge,
-  type Node,
   type EdgeTypes,
   type NodeTypes,
 } from "@xyflow/react";
@@ -16,6 +15,8 @@ import NoteNode from "./nodes/NoteNode";
 import MemoryNode from "./nodes/MemoryNode";
 import WireEdge from "./WireEdge";
 import { useStore } from "../store";
+import { BUILT_IN } from "../teams";
+import type { AgentFlowNode } from "../types";
 import { api } from "../api";
 
 const nodeTypes = {
@@ -81,20 +82,40 @@ export default function Canvas() {
     });
   }, []);
 
-  const onNodeContextMenu = useCallback((e: React.MouseEvent, node: Node) => {
+  /* One handler for the whole canvas, and the node is read off the DOM.
+     ReactFlow's own onNodeContextMenu never sees a right-click inside an
+     agent's terminal — the emulator's element is created outside React — so
+     right-clicking the thing you are looking at gave you the canvas menu. */
+  const onContextMenu = useCallback((e: React.MouseEvent) => {
+    const el = (e.target as HTMLElement | null)?.closest?.(".react-flow__node");
+    const nodeId = el?.getAttribute("data-id") ?? null;
     e.preventDefault();
-    setCtx({ x: e.clientX, y: e.clientY, nodeId: node.id });
-  }, []);
-
-  const onPaneContextMenu = useCallback((e: React.MouseEvent | MouseEvent) => {
-    e.preventDefault();
-    setCtx({ x: (e as React.MouseEvent).clientX, y: (e as React.MouseEvent).clientY, nodeId: null });
+    setCtx({ x: e.clientX, y: e.clientY, nodeId });
   }, []);
 
   const ctxNode = ctx?.nodeId ? nodes.find((n) => n.id === ctx.nodeId) : null;
 
+  /* Every other agent, so a connection can be made from a menu. Dragging one
+     dot onto another is precise work at any zoom, and it is the single most
+     important thing on this canvas: without an edge, agents cannot see each
+     other at all. */
+  const peers =
+    ctxNode?.type === "agent"
+      ? nodes.filter(
+          (n): n is AgentFlowNode =>
+            n.type === "agent" && n.id !== ctxNode.id && !n.data.pending
+        )
+      : [];
+  const isConnected = (a: string, b: string) =>
+    edges.some(
+      (e) => (e.source === a && e.target === b) || (e.source === b && e.target === a)
+    );
+
   return (
-    <div className={`canvas-wrap ${search ? "searching" : ""}`}>
+    <div
+      className={`canvas-wrap ${search ? "searching" : ""}`}
+      onContextMenu={onContextMenu}
+    >
       <ReactFlow
         nodes={nodes}
         edges={edges}
@@ -106,8 +127,6 @@ export default function Canvas() {
         onEdgesDelete={onEdgesDelete}
         onNodeClick={(_, n) => setSelected(n.id)}
         onPaneClick={() => setSelected(null)}
-        onNodeContextMenu={onNodeContextMenu}
-        onPaneContextMenu={onPaneContextMenu}
         onInit={(inst) => useStore.getState().setFlow(inst)}
         onMove={(_, state) => setZoom(state.zoom * 100)}
         defaultViewport={{ x: 60, y: 60, zoom: 0.92 }}
@@ -122,18 +141,7 @@ export default function Canvas() {
           size={1}
           color="rgba(255,255,255,0.12)"
         />
-        {nodes.length === 0 && (
-          <div className="empty">
-            <div className="empty-inner">
-              <div className="empty-title">Nothing on the canvas yet</div>
-              <div className="empty-sub">
-                Launch an agent from the rail, or type what you want in the bar
-                below — try “add a Claude Code agent and a Codex agent, then
-                connect them”.
-              </div>
-            </div>
-          </div>
-        )}
+        {nodes.length === 0 && <Empty />}
         <MiniMap
           pannable
           zoomable
@@ -155,6 +163,32 @@ export default function Canvas() {
         >
           {ctxNode ? (
             <>
+              {ctxNode.type === "agent" && peers.length > 0 && (
+                <>
+                  <div className="menu-head">Connected to</div>
+                  {peers.map((p) => {
+                    const on = isConnected(ctxNode.id, p.id);
+                    return (
+                      <button
+                        key={p.id}
+                        className="menu-item"
+                        title={on ? "Disconnect these two" : "Let these two see each other"}
+                        onClick={() => {
+                          const call = on ? api.removeEdge : api.addEdge;
+                          void call(ctxNode.id, p.id).catch((e) =>
+                            pushToast("err", String(e))
+                          );
+                          setCtx(null);
+                        }}
+                      >
+                        <span>{p.data.label}</span>
+                        <span className={on ? "tick" : "muted small"}>{on ? "✓" : "connect"}</span>
+                      </button>
+                    );
+                  })}
+                  <div className="menu-sep" />
+                </>
+              )}
               {ctxNode.type === "agent" && (
                 <button
                   className="menu-item"
@@ -177,18 +211,92 @@ export default function Canvas() {
               </button>
             </>
           ) : (
-            <button
-              className="menu-item"
-              onClick={() => {
-                addNote();
-                setCtx(null);
-              }}
-            >
-              Add a sticky note
-            </button>
+            <>
+              <button
+                className="menu-item"
+                onClick={() => {
+                  addNote();
+                  setCtx(null);
+                }}
+              >
+                Add a sticky note
+              </button>
+              <button
+                className="menu-item"
+                onClick={() => {
+                  useStore.getState().frameAll();
+                  setCtx(null);
+                }}
+              >
+                <span>Fit everything on screen</span>
+                <span className="muted small">⌘0</span>
+              </button>
+            </>
           )}
         </div>
       )}
+    </div>
+  );
+}
+
+/** The first thing anyone sees. It names the folder agents will run in and
+ *  starts a working team in one click, rather than describing where a button
+ *  is and leaving the operator to wire two agents together by hand. */
+function Empty() {
+  const harnesses = useStore((s) => s.harnesses);
+  const launchAgent = useStore((s) => s.launchAgent);
+  const launchTeam = useStore((s) => s.launchTeam);
+  const workspaceRoot = useStore((s) => s.workspaceRoot);
+  const installed = harnesses.filter((h) => h.available);
+  const folder = workspaceRoot.split("/").filter(Boolean).pop();
+
+  if (installed.length === 0) {
+    return (
+      <div className="empty">
+        <div className="empty-inner">
+          <div className="empty-title">No agent CLIs found</div>
+          <div className="empty-sub">
+            Agent Canvas runs the CLIs you already have. Install Claude Code,
+            Codex, Gemini CLI or opencode, then reload the canvas.
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="empty">
+      <div className="empty-inner">
+        <div className="empty-title">Start a team</div>
+        <div className="empty-sub">
+          {folder
+            ? `They will run in ${folder}, each in its own terminal, wired to each other.`
+            : "Choose a working folder in the toolbar first."}
+        </div>
+        <div className="empty-teams">
+          {BUILT_IN.map((t) => (
+            <button key={t.id} className="empty-team" onClick={() => void launchTeam(t)}>
+              <span className="empty-team-name">{t.label}</span>
+              <span className="empty-team-blurb">{t.blurb}</span>
+              <span className="empty-team-count">
+                {t.members.map((m) => m.name).join(" · ")}
+              </span>
+            </button>
+          ))}
+        </div>
+        <div className="empty-actions">
+          <span className="empty-or">or one agent</span>
+          {installed.map((h) => (
+            <button
+              key={h.name}
+              className="empty-btn"
+              onClick={() => void launchAgent(h.name)}
+            >
+              {h.label}
+            </button>
+          ))}
+        </div>
+      </div>
     </div>
   );
 }

@@ -55,6 +55,7 @@ fn handle(
                 "protocolVersion": params.get("protocolVersion").and_then(Value::as_str).unwrap_or("2024-11-05"),
                 "capabilities": { "tools": {} },
                 "serverInfo": { "name": "agent-canvas-bus", "version": "0.1.0" },
+                "instructions": briefing(node_id),
             }),
         ),
         "tools/list" => envelope(id, json!({ "tools": tools() })),
@@ -65,6 +66,55 @@ fn handle(
             "error": { "code": -32601, "message": "method not found" },
         }),
     }
+}
+
+/// What the agent is told about where it is running.
+///
+/// MCP puts this in `InitializeResult.instructions`, which clients fold into
+/// the model's system prompt. Without it an agent has no idea it is on a
+/// canvas at all: asked about work a peer did, it answers from its own
+/// knowledge and says it does not know, because nothing ever suggested there
+/// was somebody else to ask.
+pub fn briefing(node_id: &str) -> String {
+    format!(
+        "You are one agent on an Agent Canvas: several AI coding CLIs running side \
+by side, each in its own terminal and working directory, joined by a shared Bus. \
+You are node `{node_id}`.
+
+The operator draws the connections that decide who you can see. Agents joined to \
+you are your peers. You cannot see anyone else's terminal and they cannot see \
+yours. Nothing you print in your own terminal reaches another agent: a fact \
+leaves this node only through a tool.
+
+Peers may have roles — reviewer, planner, whatever the operator set up. \
+`list_peers` gives you each one's role, so route work to whoever it belongs to \
+instead of doing it yourself.
+
+THE MISTAKE TO AVOID. A name you do not recognise is far more likely to be a \
+peer's work than a mistake by the operator. Spells, functions, files, plans, \
+schemas and decisions another agent invented ten seconds ago look exactly like \
+things that do not exist.
+
+So: never answer that something is unknown, unfamiliar, not a real thing, or a \
+typo until you have called `list_peers` and `recall`, and `get_peer_context` on \
+any peer that might have produced it. Look first, then answer. This comes before \
+your own knowledge, and it applies even when the question sounds like general \
+knowledge rather than something about this canvas.
+
+The rest:
+
+- When you decide something, invent a name, or settle on a shape others will \
+need, call `remember` with a short stable key. That is the only way it reaches \
+anyone.
+- `list_tasks` and `claim_task` before starting work someone else might already \
+be doing; `complete_task` when it is finished.
+- `check_inbox` when you begin a turn, and whenever a peer says they sent you \
+something.
+- `ask_user` when a decision is the human's to make. It blocks until they answer.
+- `hire_agent` when the work splits into parts that can run at once, or needs a \
+second pair of eyes. You get a peer connected to you, in your working \
+directory. Brief it fully: it cannot see anything you have read or said."
+    )
 }
 
 fn envelope(id: Value, result: Value) -> Value {
@@ -96,10 +146,10 @@ fn call_tool(
     node_id: &str,
 ) -> Result<Value, String> {
     let (verb, path, body): (&str, String, Option<Value>) = match name {
-        "list_peers" => ("GET", format!("/state?node={node_id}"), None),
+        "list_peers" => ("GET", format!("/peers?as={node_id}"), None),
         "get_peer_context" => (
             "GET",
-            format!("/state?node={}", str_arg(args, "peer_id")?),
+            format!("/peer/{}?as={node_id}", str_arg(args, "peer_id")?),
             None,
         ),
         "message_peer" => {
@@ -112,6 +162,21 @@ fn call_tool(
             )
         }
         "check_inbox" => ("GET", format!("/inbox/{node_id}"), None),
+        "hire_agent" => {
+            let harness = str_arg(args, "harness")?;
+            let name = str_arg(args, "name")?;
+            (
+                "POST",
+                "/hire".to_string(),
+                Some(json!({
+                    "by": node_id,
+                    "harness": harness,
+                    "name": name,
+                    "role": opt_str(args, "role"),
+                    "brief": opt_str(args, "brief"),
+                })),
+            )
+        }
         "add_task" => {
             let title = str_arg(args, "title")?;
             let details = opt_str(args, "details");
@@ -309,12 +374,12 @@ fn tools() -> Vec<Value> {
     vec![
         json!({
             "name": "list_peers",
-            "description": "List agent nodes connected to you on the canvas.",
+            "description": "The agents you are connected to, with what each is doing right now. Call this before answering any question about work you did not do yourself.",
             "inputSchema": schema(json!({}), &[]),
         }),
         json!({
             "name": "get_peer_context",
-            "description": "Read the full context of one connected peer agent node.",
+            "description": "Read what is on a connected peer's screen. This is how you find out what another agent actually did. Requires a connection to that peer.",
             "inputSchema": schema(
                 json!({ "peer_id": { "type": "string", "description": "Peer node id" } }),
                 &["peer_id"],
@@ -329,8 +394,21 @@ fn tools() -> Vec<Value> {
             ),
         }),
         json!({
+            "name": "hire_agent",
+            "description": "Start another agent on this canvas and connect it to you. Use this when the work splits into parts that can run at the same time, or needs a second pair of eyes. The new agent begins in your working directory, sees only you, and gets `brief` typed into it as its first instruction — so put everything it needs to know in there, including what it must not touch. It cannot see this conversation. Give it work through `add_task` or `message_peer` afterwards.",
+            "inputSchema": schema(
+                json!({
+                    "harness": { "type": "string", "description": "Which CLI to run, e.g. claude, codex, opencode, gemini. Ask list_canvas or the operator if unsure." },
+                    "name": { "type": "string", "description": "A short unique name, e.g. Builder or Frontend" },
+                    "role": { "type": "string", "description": "A few words on what it is for. Its peers read this." },
+                    "brief": { "type": "string", "description": "Its opening instruction, typed into its terminal when it comes up." }
+                }),
+                &["harness", "name"],
+            ),
+        }),
+        json!({
             "name": "check_inbox",
-            "description": "Fetch and clear messages waiting for you.",
+            "description": "Fetch and clear messages peers have sent you. Worth calling when you start a turn.",
             "inputSchema": schema(json!({}), &[]),
         }),
         json!({
@@ -388,12 +466,12 @@ fn tools() -> Vec<Value> {
         }),
         json!({
             "name": "list_canvas",
-            "description": "List every node and edge on the canvas.",
+            "description": "Every node and edge on the canvas, including agents you are not connected to. Names and status only; reading a peer's work needs a connection.",
             "inputSchema": schema(json!({}), &[]),
         }),
         json!({
             "name": "remember",
-            "description": "Write a fact into the memory every agent on this canvas shares. Use a short stable key; writing the same key again replaces it.",
+            "description": "Write a fact into the memory every agent on this canvas shares. This is the only way something you worked out reaches another agent. Use a short stable key; writing the same key again replaces it.",
             "inputSchema": schema(
                 json!({
                     "key": { "type": "string", "description": "Short stable identifier, e.g. db-migration-plan" },
@@ -404,7 +482,7 @@ fn tools() -> Vec<Value> {
         }),
         json!({
             "name": "recall",
-            "description": "Read the shared canvas memory, newest first. Omit query to get everything.",
+            "description": "Read the shared canvas memory, newest first. Check here before saying you do not know something. Omit query to get everything.",
             "inputSchema": schema(
                 json!({ "query": { "type": "string", "description": "Optional filter over keys and values" } }),
                 &[],

@@ -30,9 +30,11 @@ pub async fn start(shared: Arc<BusShared>) -> Result<(u16, String), String> {
     let token = uuid::Uuid::new_v4().simple().to_string();
     let router = Router::new()
         .route("/health", get(health))
-        .route("/state", get(state))
+        .route("/peers", get(peers))
+        .route("/peer/{id}", get(peer))
         .route("/canvas", get(canvas))
         .route("/message", post(message))
+        .route("/hire", post(hire))
         .route("/inbox/{node}", get(inbox))
         .route("/tasks", get(tasks_list).post(task_create))
         .route("/tasks/{id}/claim", post(task_claim))
@@ -78,20 +80,67 @@ async fn health() -> Json<Value> {
     Json(json!({ "ok": true }))
 }
 
-async fn state(State(ctx): State<Ctx>, Query(q): Query<HashMap<String, String>>) -> Json<Value> {
+/// The shape of the canvas is public; what an agent is actually doing is not.
+/// A brief says who a node is and whether it is busy, and stops there.
+fn brief_node(n: &bus::NodeInfo) -> Value {
+    json!({
+        "id": n.id,
+        "label": n.label,
+        "harness": n.harness,
+        "status": n.status,
+        "cwd": n.cwd,
+        "role": n.role,
+    })
+}
+
+/// Who the caller may see. `as` is the requesting node, supplied by its own MCP
+/// bridge rather than by the agent, so it cannot be claimed.
+async fn peers(State(ctx): State<Ctx>, Query(q): Query<HashMap<String, String>>) -> Json<Value> {
     let (shared, _) = ctx;
-    let node_id = q.get("node").cloned().unwrap_or_default();
-    Json(json!({
-        "node": shared.get_node(&node_id),
-        "peers": shared.peers_of(&node_id),
-        "edges": edges_json(&shared),
-        "tasks": shared.list_tasks(),
-    }))
+    let me = q.get("as").cloned().unwrap_or_default();
+    let peers: Vec<Value> = shared
+        .peers_of(&me)
+        .iter()
+        .map(|n| {
+            let mut v = brief_node(n);
+            // One line of what they are up to, so the common case — "who would
+            // know about this?" — is answered without a second round trip.
+            if let Some(line) = n.output_tail.iter().rev().find(|l| !l.trim().is_empty()) {
+                v["doing"] = json!(line.trim());
+            }
+            v
+        })
+        .collect();
+    Json(json!({ "peers": peers, "tasks": shared.list_tasks() }))
+}
+
+/// Everything one peer has on screen. This is the only route that hands an
+/// agent another agent's work, and it is the only one that requires an edge.
+async fn peer(
+    State(ctx): State<Ctx>,
+    Path(id): Path<String>,
+    Query(q): Query<HashMap<String, String>>,
+) -> Response {
+    let (shared, _) = ctx;
+    let me = q.get("as").cloned().unwrap_or_default();
+    if !shared.connected(&me, &id) {
+        return forbidden(format!(
+            "no connection between {me} and {id}; ask the operator to draw one"
+        ));
+    }
+    match shared.get_node(&id) {
+        Some(n) => Json(json!({
+            "peer": brief_node(&n),
+            "screen": n.output_tail,
+        }))
+        .into_response(),
+        None => err(format!("unknown node {id}")),
+    }
 }
 
 async fn canvas(State(ctx): State<Ctx>) -> Json<Value> {
     let (shared, _) = ctx;
-    let nodes: Vec<bus::NodeInfo> = shared.nodes.lock().values().cloned().collect();
+    let nodes: Vec<Value> = shared.nodes.lock().values().map(brief_node).collect();
     Json(json!({
         "nodes": nodes,
         "edges": edges_json(&shared),
@@ -109,8 +158,94 @@ struct MessageBody {
 async fn message(State(ctx): State<Ctx>, Json(b): Json<MessageBody>) -> Response {
     let (shared, _) = ctx;
     match shared.add_message(&b.from, &b.to, &b.text) {
-        Ok(m) => Json(json!({ "ok": true, "message": m })).into_response(),
+        Ok(m) => {
+            // An idle recipient gets the message typed into its terminal, so
+            // it acts on it now instead of the next time somebody prompts it.
+            let sender = shared
+                .get_node(&b.from)
+                .map(|n| n.label)
+                .unwrap_or_else(|| b.from.clone());
+            let guard = crate::spawn::delivery_lock().lock();
+            let delivered = crate::spawn::deliver_message(&shared, &b.to, &sender);
+            drop(guard);
+            Json(json!({ "ok": true, "message": m, "delivered": delivered })).into_response()
+        }
         Err(e) => err(e),
+    }
+}
+
+#[derive(Deserialize)]
+struct HireBody {
+    by: String,
+    harness: String,
+    name: String,
+    #[serde(default)]
+    role: String,
+    #[serde(default)]
+    brief: String,
+}
+
+/// One agent starting another.
+///
+/// The new agent lands in the hirer's working directory and is joined to it,
+/// because an agent nobody is connected to cannot be seen, messaged, or given
+/// anything to do — hiring one and leaving it stranded would be a bug that
+/// only shows up as silence.
+async fn hire(State(ctx): State<Ctx>, Json(b): Json<HireBody>) -> Response {
+    let (shared, _) = ctx;
+
+    if !*shared.allow_hiring.lock() {
+        return forbidden(
+            "the operator has turned off agents starting other agents; ask them to launch it"
+                .to_string(),
+        );
+    }
+    let Some(me) = shared.get_node(&b.by) else {
+        return err(format!("unknown node {}", b.by));
+    };
+    let cap = *shared.agent_cap.lock() as usize;
+    let now = shared.nodes.lock().len();
+    if now >= cap {
+        return forbidden(format!(
+            "the canvas is full at {cap} agents. Finish or hand back work before starting more."
+        ));
+    }
+    let name = b.name.trim().to_string();
+    if name.is_empty() {
+        return err("a new agent needs a name".to_string());
+    }
+    if shared
+        .nodes
+        .lock()
+        .values()
+        .any(|n| n.label.eq_ignore_ascii_case(&name))
+    {
+        return err(format!(
+            "there is already an agent called {name}; pick another name"
+        ));
+    }
+
+    // `launch_agent` writes config files and spawns a process. Doing that on
+    // the async runtime would block whichever worker is serving other agents.
+    let bus = shared.clone();
+    let (harness, role, brief, cwd) = (b.harness.clone(), b.role.clone(), b.brief.clone(), me.cwd);
+    let launched = tokio::task::spawn_blocking(move || {
+        crate::spawn::launch_agent(&bus, name, harness, cwd, brief, role)
+    })
+    .await;
+
+    let id = match launched {
+        Ok(Ok(id)) => id,
+        Ok(Err(e)) => return err(e),
+        Err(e) => return err(format!("the agent did not start: {e}")),
+    };
+
+    shared.connect(&b.by, &id);
+    if let Some(node) = shared.get_node(&id) {
+        shared.announce_node(&node);
+        Json(json!({ "ok": true, "agent": brief_node(&node) })).into_response()
+    } else {
+        err("the agent started but is not on the Bus".to_string())
     }
 }
 
@@ -231,7 +366,7 @@ async fn status(State(ctx): State<Ctx>, Query(q): Query<HashMap<String, String>>
     let (shared, _) = ctx;
     match q.get("node").cloned() {
         Some(id) => match shared.get_node(&id) {
-            Some(n) => Json(n).into_response(),
+            Some(n) => Json(brief_node(&n)).into_response(),
             None => (
                 StatusCode::NOT_FOUND,
                 Json(json!({ "error": format!("node {id} not found") })),
@@ -312,4 +447,8 @@ fn nodes_map(shared: &BusShared) -> Value {
 
 fn err<S: Into<String>>(s: S) -> Response {
     (StatusCode::BAD_REQUEST, Json(json!({ "error": s.into() }))).into_response()
+}
+
+fn forbidden<S: Into<String>>(s: S) -> Response {
+    (StatusCode::FORBIDDEN, Json(json!({ "error": s.into() }))).into_response()
 }

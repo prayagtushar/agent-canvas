@@ -1,6 +1,6 @@
-import { useEffect, useRef, useState, type ReactNode } from "react";
-import { api } from "../api";
+import { useEffect, useRef, useState } from "react";
 import { useStore } from "../store";
+import TeamMenu from "./TeamMenu";
 
 function Icon({ d, size = 16 }: { d: string; size?: number }) {
   return (
@@ -26,12 +26,11 @@ const MEM = "M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zM12 8v4l3 2";
 const INFO = "M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20zM12 16v-5M12 8h.01";
 
 export default function Rail() {
-  const [menu, setMenu] = useState<"agent" | "bus" | null>(null);
-  const harnesses = useStore((s) => s.harnesses);
-  const launchAgent = useStore((s) => s.launchAgent);
+  const [menu, setMenu] = useState<"agent" | null>(null);
   const addTaskBoard = useStore((s) => s.addTaskBoard);
   const addNote = useStore((s) => s.addNote);
   const addMemoryNode = useStore((s) => s.addMemoryNode);
+  const setDiagnosticsOpen = useStore((s) => s.setDiagnosticsOpen);
   const wrapRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -48,36 +47,14 @@ export default function Rail() {
       <div className="rail-wrap">
         <button
           className={`rail-btn ${menu === "agent" ? "on" : ""}`}
-          title="Launch an agent"
+          title="Launch an agent or a whole team"
           onClick={() => setMenu(menu === "agent" ? null : "agent")}
         >
           <Icon d={PLUS} />
         </button>
         {menu === "agent" && (
-          <div className="rail-menu">
-            <div className="menu-head">Launch a harness</div>
-            {harnesses.map((h) => (
-              <button
-                key={h.name}
-                className="menu-item"
-                disabled={!h.available}
-                title={h.available ? undefined : `${h.name} is not on your PATH`}
-                onClick={() => {
-                  void launchAgent(h.name);
-                  setMenu(null);
-                }}
-              >
-                <span>{h.label}</span>
-                {!h.available ? (
-                  <span className="muted small">not installed</span>
-                ) : (
-                  !h.bus && <span className="muted small">no bus</span>
-                )}
-              </button>
-            ))}
-            {harnesses.length === 0 && (
-              <div className="menu-item muted">No harnesses found on PATH</div>
-            )}
+          <div className="rail-menu rail-menu-wide nowheel">
+            <TeamMenu onDone={() => setMenu(null)} />
           </div>
         )}
       </div>
@@ -102,48 +79,13 @@ export default function Rail() {
 
       <div className="rail-wrap">
         <button
-          className={`rail-btn ${menu === "bus" ? "on" : ""}`}
-          title="Where the Bus is listening"
-          onClick={() => setMenu(menu === "bus" ? null : "bus")}
+          className="rail-btn"
+          title="Diagnostics: the Bus, and which CLIs can run here"
+          onClick={() => setDiagnosticsOpen(true)}
         >
           <Icon d={INFO} />
         </button>
-        {menu === "bus" && (
-          <div className="rail-menu">
-            <BusChip />
-          </div>
-        )}
       </div>
     </div>
   );
-}
-
-function BusChip() {
-  const [info, setInfo] = useState<ReactNode>("Checking…");
-  useEffect(() => {
-    let alive = true;
-    api
-      .getBusInfo()
-      .then((b) => {
-        if (!alive) return;
-        setInfo(
-          b.port === 0 ? (
-            "The Bus is still starting."
-          ) : (
-            <>
-              Listening on <b>127.0.0.1:{b.port}</b>
-              <br />
-              Token <b>{b.token.slice(0, 8)}…</b>
-              <br />
-              Every agent reaches it as an MCP server.
-            </>
-          )
-        );
-      })
-      .catch(() => alive && setInfo("The Bus is not listening."));
-    return () => {
-      alive = false;
-    };
-  }, []);
-  return <div className="bus-chip">{info}</div>;
 }

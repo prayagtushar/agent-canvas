@@ -1,11 +1,21 @@
 import { invoke } from "@tauri-apps/api/core";
-import type { BusInfo, CommState, HarnessInfo, MemoryEntry, NodeInfo } from "./types";
+import type {
+  BusInfo,
+  CommState,
+  HarnessDiagnosis,
+  HarnessInfo,
+  MemoryEntry,
+  NodeInfo,
+  Task,
+} from "./types";
 
 export type AddAgentArgs = {
   label: string;
   harness: string;
   cwd: string;
   prompt: string;
+  /** What this agent is for. Stored on the Bus, so peers see it too. */
+  role: string;
 };
 
 export const api = {
@@ -20,9 +30,31 @@ export const api = {
 
   killAgent: (id: string): Promise<void> => invoke<void>("kill_agent", { id }),
 
+  restartAgent: (id: string): Promise<void> => invoke<void>("restart_agent", { id }),
+
+  /** Rename an agent on the Bus, which is also what its peers see. Returns
+   *  the name that was actually stored, after trimming and truncation. */
+  renameAgent: (id: string, label: string): Promise<string> =>
+    invoke<string>("rename_agent", { id, label }),
+
+  /** Keystrokes from a node's terminal, straight through to the CLI. */
+  agentInput: (id: string, data: string): Promise<void> =>
+    invoke<void>("agent_input", { id, data }),
+
+  agentResize: (id: string, cols: number, rows: number): Promise<void> =>
+    invoke<void>("agent_resize", { id, cols, rows }),
+
   listHarnesses: (): Promise<HarnessInfo[]> => invoke<HarnessInfo[]>("list_harnesses"),
 
+  /** Installed CLIs, their versions, and how each is wired to the Bus. */
+  diagnoseHarnesses: (): Promise<HarnessDiagnosis[]> =>
+    invoke<HarnessDiagnosis[]>("diagnose_harnesses"),
+
   saveWorkspace: (json: string): Promise<void> => invoke<void>("save_workspace", { json }),
+
+  /** Write a session report to a path the operator picked. */
+  exportReport: (path: string, contents: string): Promise<void> =>
+    invoke<void>("export_report", { path, contents }),
 
   loadWorkspace: (): Promise<string | null> => invoke<string | null>("load_workspace"),
 
@@ -49,11 +81,23 @@ export const api = {
 
   setAutoComm: (on: boolean): Promise<void> => invoke<void>("set_auto_comm", { on }),
 
+  /** Whether an agent may start another agent. */
+  setAllowHiring: (on: boolean): Promise<void> =>
+    invoke<void>("set_allow_hiring", { on }),
+
   setMessageCap: (cap: number): Promise<void> => invoke<void>("set_message_cap", { cap }),
 
   resetMessageCount: (): Promise<void> => invoke<void>("reset_message_count"),
 
   listMemory: (): Promise<MemoryEntry[]> => invoke<MemoryEntry[]>("list_memory"),
+
+  listTasks: (): Promise<Task[]> => invoke<Task[]>("list_tasks"),
+
+  /** Put work on the shared board as the operator. */
+  addTask: (title: string, details: string): Promise<Task> =>
+    invoke<Task>("add_task", { title, details }),
+
+  removeTask: (id: string): Promise<void> => invoke<void>("remove_task", { id }),
 
   remember: (key: string, value: string): Promise<MemoryEntry> =>
     invoke<MemoryEntry>("remember", { key, value }),

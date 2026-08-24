@@ -12,8 +12,12 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
-# macos-private-api backs `macOSPrivateApi: true` — required for a
-# transparent window that lets the desktop wallpaper show through.
+# `macos-private-api` backs `macOSPrivateApi: true`, which a transparent
+# window needs to let the desktop wallpaper show through. Both the feature and
+# the config key stay unconditional: Tauri checks the two against each other
+# per target, and a macOS-only config file is not merged into a Windows build,
+# so splitting them makes every Windows build fail the check. Windows ignores
+# the key itself.
 tauri = { version = "2", features = ["macos-private-api"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
@@ -23,6 +27,9 @@ uuid = { version = "1", features = ["v4"] }
 parking_lot = "0.12"
 dirs = "5"
 tauri-plugin-dialog = "2.7.2"
+tauri-plugin-notification = "2"
+portable-pty = "0.9.0"
+vt100 = "0.16.2"
 
 [profile.dev]
 incremental = true

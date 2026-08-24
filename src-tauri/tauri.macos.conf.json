@@ -1,0 +1,18 @@
+{
+  "app": {
+    "windows": [
+      {
+        "decorations": true,
+        "titleBarStyle": "Overlay",
+        "hiddenTitle": true,
+        "windowEffects": {
+          "effects": [
+            "underWindowBackground"
+          ],
+          "state": "followsWindowActiveState",
+          "radius": 12.0
+        }
+      }
+    ]
+  }
+}

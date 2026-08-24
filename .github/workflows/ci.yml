@@ -7,7 +7,7 @@ on:
 
 jobs:
   frontend:
-    name: Frontend (typecheck + build)
+    name: Frontend (typecheck + test + build)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -17,11 +17,19 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run typecheck
+      - run: npm run test:web
       - run: npm run build
 
   backend:
-    name: Backend (check + test)
-    runs-on: macos-latest
+    # Both platforms on every push. How a CLI is found and started is the one
+    # thing that differs between them, and it is not code you can check by
+    # reading it — it either compiles and runs there or it does not.
+    name: Backend (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, windows-latest]
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
@@ -30,6 +38,7 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: src-tauri
+          key: ${{ matrix.os }}
       # tauri::generate_context! needs the frontend bundle to exist
       - uses: actions/setup-node@v4
         with:
@@ -38,5 +47,28 @@ jobs:
       - run: npm ci
       - run: npm run build
       - run: cargo fmt --manifest-path src-tauri/Cargo.toml -- --check
-      - run: cargo clippy --manifest-path src-tauri/Cargo.toml -- -D warnings
+      - run: cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings
       - run: cargo test --manifest-path src-tauri/Cargo.toml
+
+  bundle:
+    # Proves the thing users actually download still builds, before a tag
+    # makes that everyone's problem.
+    name: Bundle (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+          key: bundle-${{ matrix.os }}
+      - run: npm ci
+      - run: npm run tauri build -- --no-bundle

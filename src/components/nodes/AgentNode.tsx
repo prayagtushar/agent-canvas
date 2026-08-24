@@ -1,8 +1,10 @@
-import { memo, useEffect, useRef, useState } from "react";
+import { memo, useEffect, useMemo, useRef, useState } from "react";
 import { Handle, NodeResizer, Position, type NodeProps } from "@xyflow/react";
 import { api } from "../../api";
-import { useStore } from "../../store";
+import { matchesSearch, NODE_SIZE, updateNodeData, useStore } from "../../store";
+import * as terminals from "../../terminals";
 import type { AgentFlowNode } from "../../types";
+import AgentTerminal from "./AgentTerminal";
 
 const STATUS_COLOR: Record<string, string> = {
   idle: "#949cab",
@@ -33,6 +35,15 @@ const HARNESS_LABEL: Record<string, string> = {
   opencode: "opencode",
 };
 
+/** Escape cancels a turn in Claude Code and the Gemini-family CLIs; the rest
+ *  take Ctrl-C. The backend picks per harness — this is only what the button
+ *  tells the operator it will do. */
+const CANCEL_KEY: Record<string, string> = {
+  claude: "esc",
+  gemini: "esc",
+  qwen: "esc",
+};
+
 /* Eight connection points — four edge midpoints that accept a drag,
    plus four decorative corners, matching the canvas idiom. */
 function Dots() {
@@ -58,62 +69,37 @@ function Dots() {
   );
 }
 
-/** Agent output is mostly tool calls and short prose. Giving each line kind
- *  its own colour is the difference between a wall of text and a transcript
- *  you can skim.
- *
- *  Memoised because a transcript runs to hundreds of lines and only the last
- *  one changes when a chunk arrives. Keyed by absolute position in the stream
- *  by the caller, so a scrollback trim does not renumber every line. */
-const Line = memo(function Line({ text }: { text: string }) {
-  if (text.startsWith("> ")) {
-    const m = text.match(/^> ([A-Za-z0-9_]+)\((.*)\)$/);
-    if (m) {
-      return (
-        <div className="ln ln-tool">
-          <span className="ln-caret">›</span>
-          <span className="ln-tool-name">{m[1]}</span>
-          {m[2] && <span className="ln-tool-arg">{m[2]}</span>}
-        </div>
-      );
-    }
-    return <div className="ln ln-tool">{text.slice(2)}</div>;
-  }
-  if (text.startsWith("· ")) return <div className="ln ln-meta">{text}</div>;
-  if (text.startsWith("[message from")) return <div className="ln ln-peer">{text}</div>;
-  return <div className="ln">{text}</div>;
-});
-
-function formatTokens(n: number): string {
-  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
-  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}k`;
-  return String(n);
-}
-
 function AgentNodeInner({ id, data, selected }: NodeProps<AgentFlowNode>) {
-  const output = useStore((s) => s.outputs[data.nodeId]);
   const unread = useStore((s) => s.unread[data.nodeId] ?? 0);
   const status = useStore((s) => s.statuses[data.nodeId]) || data.status;
   const search = useStore((s) => s.search);
-  const usage = useStore((s) => s.usage[data.nodeId]);
-  const trimmed = useStore((s) => s.trimmed[data.nodeId] ?? 0);
   const setNodes = useStore((s) => s.setNodes);
   const setSelected = useStore((s) => s.setSelected);
   const removeNode = useStore((s) => s.removeNode);
   const pushToast = useStore((s) => s.pushToast);
+  const revealNode = useStore((s) => s.revealNode);
+  const setActivityOpen = useStore((s) => s.setActivityOpen);
+  const labelOf = useStore((s) => s.labelOf);
+  /* Who this agent can see. An agent with no wire is alone on the canvas
+     whatever else is on it, and that is not otherwise visible at a glance.
+     Derived outside the selector: a selector that builds a fresh array is a
+     new value on every render, and zustand would re-render for ever. */
+  const edges = useStore((s) => s.edges);
+  const peers = useMemo(
+    () =>
+      edges
+        .filter((e) => e.source === id || e.target === id)
+        .map((e) => (e.source === id ? e.target : e.source)),
+    [edges, id]
+  );
 
-  const [prompt, setPrompt] = useState("");
+  const [renaming, setRenaming] = useState(false);
   const [expanded, setExpanded] = useState(false);
   const [done, setDone] = useState(false);
-  const bodyRef = useRef<HTMLPreElement>(null);
-  const pinnedRef = useRef(true);
   const wasBusy = useRef(false);
-
-  // Follow the tail unless the operator has scrolled up to read something.
-  useEffect(() => {
-    const el = bodyRef.current;
-    if (el && pinnedRef.current) el.scrollTop = el.scrollHeight;
-  }, [output]);
+  /** The size the operator had set before expanding, so restoring gives back
+   *  their window rather than the default one. */
+  const restoreTo = useRef<{ width: number; height: number } | null>(null);
 
   const running = status === "running" || status === "waiting";
 
@@ -129,27 +115,39 @@ function AgentNodeInner({ id, data, selected }: NodeProps<AgentFlowNode>) {
   }, [running]);
 
   const color = STATUS_COLOR[status] ?? STATUS_COLOR.idle;
-  const hit = search !== "" && data.label.toLowerCase().includes(search.toLowerCase());
+  const hit = matchesSearch({ type: "agent", data } as never, search);
   const dirName = data.cwd.split("/").filter(Boolean).pop() ?? data.cwd;
 
-  const send = () => {
-    const text = prompt.trim();
-    if (!text) return;
-    setPrompt("");
-    pinnedRef.current = true;
-    void api.sendPrompt(data.nodeId, text).catch((e) => pushToast("err", String(e)));
+  /** The name lives on the Bus, because peers read it too. Only once the Bus
+   *  has taken it does the canvas show it. */
+  const rename = (raw: string) => {
+    setRenaming(false);
+    const next = raw.trim();
+    if (!next || next === data.label) return;
+    void api
+      .renameAgent(data.nodeId, next)
+      .then((stored) => updateNodeData(id, { label: stored }))
+      .catch((e) => pushToast("err", `Not renamed — ${String(e)}`));
   };
 
   const toggleExpand = () => {
     const next = !expanded;
     setExpanded(next);
     setNodes((nds) =>
-      nds.map((n) =>
-        n.id === id
-          ? { ...n, style: { ...n.style, width: next ? 860 : 512, height: next ? 590 : 336 } }
-          : n
-      )
+      nds.map((n) => {
+        if (n.id !== id) return n;
+        if (next) {
+          restoreTo.current = {
+            width: Number(n.style?.width) || NODE_SIZE.width,
+            height: Number(n.style?.height) || NODE_SIZE.height,
+          };
+          return { ...n, style: { ...n.style, width: 960, height: 640 } };
+        }
+        const back = restoreTo.current ?? NODE_SIZE;
+        return { ...n, style: { ...n.style, ...back } };
+      })
     );
+    if (next) revealNode(id);
   };
 
   // A stand-in for the seconds between the click and a live process. It has
@@ -164,9 +162,9 @@ function AgentNodeInner({ id, data, selected }: NodeProps<AgentFlowNode>) {
             {HARNESS_LABEL[data.harness] ?? data.harness}
           </span>
         </div>
-        <pre className="twin-body">
+        <div className="twin-body">
           <span className="muted">Starting {HARNESS_LABEL[data.harness] ?? data.harness}…</span>
-        </pre>
+        </div>
         <div className="twin-foot">
           <div className="meta-row">
             <span>⇡ {data.harness}</span>
@@ -189,8 +187,8 @@ function AgentNodeInner({ id, data, selected }: NodeProps<AgentFlowNode>) {
     >
       <NodeResizer
         isVisible={!!selected}
-        minWidth={360}
-        minHeight={230}
+        minWidth={380}
+        minHeight={240}
         lineClassName="resize-line"
         handleClassName="resize-handle"
       />
@@ -202,20 +200,61 @@ function AgentNodeInner({ id, data, selected }: NodeProps<AgentFlowNode>) {
           title={status}
           style={{ background: color, ["--dot-ring" as string]: STATUS_RING[status] }}
         />
-        <span className="twin-name">{data.label}</span>
+        {renaming ? (
+          <input
+            className="twin-rename nodrag"
+            autoFocus
+            defaultValue={data.label}
+            maxLength={40}
+            aria-label="Agent name"
+            onKeyDown={(e) => {
+              e.stopPropagation();
+              if (e.key === "Enter") e.currentTarget.blur();
+              else if (e.key === "Escape") {
+                e.currentTarget.value = data.label;
+                e.currentTarget.blur();
+              }
+            }}
+            onBlur={(e) => rename(e.currentTarget.value)}
+          />
+        ) : (
+          <span
+            className="twin-name"
+            title="Double-click to rename"
+            onDoubleClick={() => setRenaming(true)}
+          >
+            {data.label}
+          </span>
+        )}
         <span className={`harness-tag ${TAG_CLASS[data.harness] ?? ""}`}>
           {HARNESS_LABEL[data.harness] ?? data.harness}
         </span>
-        {unread > 0 && (
-          <span key={unread} className="unread-badge">
-            {unread}
+        {peers.length > 0 && (
+          <span
+            className="peer-tag"
+            title={`Can see ${peers.map(labelOf).join(", ")}`}
+          >
+            ⇄ {peers.length}
           </span>
+        )}
+        {unread > 0 && (
+          <button
+            key={unread}
+            className="unread-badge"
+            title={`${unread} message${unread === 1 ? "" : "s"} from a peer — read them`}
+            onClick={(e) => {
+              e.stopPropagation();
+              setActivityOpen(true);
+            }}
+          >
+            {unread}
+          </button>
         )}
         <div className="twin-actions">
           {running && (
             <button
               className="win-btn"
-              title="Interrupt"
+              title={`Cancel this turn (${CANCEL_KEY[data.harness] ?? "ctrl-c"})`}
               onClick={() => void api.interruptAgent(data.nodeId).catch(() => undefined)}
             >
               <span className="spinner" />
@@ -224,9 +263,10 @@ function AgentNodeInner({ id, data, selected }: NodeProps<AgentFlowNode>) {
           <button
             className="win-btn"
             title="Copy this output"
+            aria-label="Copy this output"
             onClick={() => {
               void navigator.clipboard
-                .writeText(output ?? "")
+                .writeText(terminals.textOf(data.nodeId))
                 .then(() => pushToast("ok", `Copied ${data.label}'s output.`))
                 .catch(() => pushToast("err", "Could not copy."));
             }}
@@ -236,26 +276,29 @@ function AgentNodeInner({ id, data, selected }: NodeProps<AgentFlowNode>) {
               <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
             </svg>
           </button>
-          <button className="win-btn" title={expanded ? "Restore size" : "Expand"} onClick={toggleExpand}>
+          <button className="win-btn" title={expanded ? "Restore size" : "Expand"}
+            aria-label={expanded ? "Restore size" : "Expand"} onClick={toggleExpand}>
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
               <path d="M15 3h6v6M9 21H3v-15M21 3l-7 7M3 21l7-7" />
             </svg>
           </button>
           <button
             className="win-btn"
-            title="Restart this agent"
+            title="Quit and relaunch this CLI"
+            aria-label="Quit and relaunch this CLI"
             onClick={() => {
               void api
-                .interruptAgent(data.nodeId)
-                .catch(() => undefined)
-                .then(() => pushToast("ok", `${data.label} interrupted. Send it a prompt to restart.`));
+                .restartAgent(data.nodeId)
+                .then(() => pushToast("ok", `${data.label} restarted.`))
+                .catch((e) => pushToast("err", String(e)));
             }}
           >
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M21 12a9 9 0 1 1-2.6-6.4M21 3v6h-6" />
             </svg>
           </button>
-          <button className="win-btn danger" title="Stop and remove" onClick={() => removeNode(id)}>
+          <button className="win-btn danger" title="Stop and remove"
+            aria-label="Stop and remove" onClick={() => removeNode(id)}>
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
               <path d="M18 6 6 18M6 6l12 12" />
             </svg>
@@ -265,44 +308,9 @@ function AgentNodeInner({ id, data, selected }: NodeProps<AgentFlowNode>) {
 
       <span className="twin-fade" />
 
-      <pre
-        ref={bodyRef}
-        className="twin-body nowheel"
-        onScroll={(e) => {
-          const el = e.currentTarget;
-          pinnedRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 24;
-        }}
-      >
-        {output ? (
-          <>
-            {output.split("\n").map((line, i) => (
-              <Line key={trimmed + i} text={line} />
-            ))}
-            {running && <span className="cursor-line" />}
-          </>
-        ) : (
-          <span className="muted">
-            {running
-              ? "Starting…"
-              : `${HARNESS_LABEL[data.harness] ?? data.harness} is ready. Send it a prompt below.`}
-          </span>
-        )}
-      </pre>
+      <AgentTerminal nodeId={data.nodeId} />
 
       <div className="twin-foot">
-        <div className="prompt-row">
-          <span className="prompt-caret">›</span>
-          <input
-            className="prompt-input nodrag"
-            placeholder="Send a prompt"
-            value={prompt}
-            onChange={(e) => setPrompt(e.target.value)}
-            onKeyDown={(e) => {
-              e.stopPropagation();
-              if (e.key === "Enter") send();
-            }}
-          />
-        </div>
         <div className="meta-row">
           {data.worktree && (
             <>
@@ -317,20 +325,14 @@ function AgentNodeInner({ id, data, selected }: NodeProps<AgentFlowNode>) {
           <span>{status}</span>
           <span className="sep">|</span>
           <span>{dirName}</span>
-          {usage && (usage.tokensIn > 0 || usage.tokensOut > 0) && (
+          {data.role && (
             <>
               <span className="sep">|</span>
-              <span
-                className="usage"
-                title={`${usage.tokensIn.toLocaleString()} in, ${usage.tokensOut.toLocaleString()} out`}
-              >
-                {formatTokens(usage.tokensIn + usage.tokensOut)} tok
-                {usage.costUsd > 0 && ` · $${usage.costUsd.toFixed(3)}`}
+              <span className="role-line" title={`Peers see this: ${data.role}`}>
+                {data.role}
               </span>
             </>
           )}
-          <span className="sep">|</span>
-          <span className="auto-mode">▶▶ auto mode on</span>
         </div>
       </div>
     </div>

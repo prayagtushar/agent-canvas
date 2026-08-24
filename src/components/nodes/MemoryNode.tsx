@@ -10,6 +10,7 @@ function MemoryNodeInner(_: NodeProps<MemoryFlowNode>) {
   const memory = useStore((s) => s.memory);
   const search = useStore((s) => s.search);
   const refreshMemory = useStore((s) => s.refreshMemory);
+  const labelOf = useStore((s) => s.labelOf);
   const pushToast = useStore((s) => s.pushToast);
   const [key, setKey] = useState("");
   const [value, setValue] = useState("");
@@ -66,7 +67,7 @@ function MemoryNodeInner(_: NodeProps<MemoryFlowNode>) {
               </button>
             </div>
             <div className="mem-value">{m.value}</div>
-            <div className="mem-author">{m.author}</div>
+            <div className="mem-author">{labelOf(m.author)}</div>
           </div>
         ))}
       </div>
