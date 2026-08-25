@@ -8,7 +8,7 @@ import {
   type ReactFlowInstance,
 } from "@xyflow/react";
 import { save } from "@tauri-apps/plugin-dialog";
-import { api } from "./api";
+import { api, noAgentsReason } from "./api";
 import { buildReport, reportFilename } from "./report";
 import { away, notify as sendDesktopNotification } from "./notify";
 import * as terminals from "./terminals";
@@ -475,7 +475,7 @@ export const useStore = create<StoreState>()((set, get) => ({
     }
     const installed = harnesses.filter((h) => h.available);
     if (installed.length === 0) {
-      get().pushToast("err", "No agent CLIs found on your PATH.");
+      get().pushToast("err", noAgentsReason());
       return;
     }
 

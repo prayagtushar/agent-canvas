@@ -9,6 +9,26 @@ import type {
   Task,
 } from "./types";
 
+/** Whether a Tauri backend is answering at all.
+ *
+ *  False in a plain browser, where `npm run dev` serves the interface for
+ *  design work but nothing behind it exists: a tab cannot spawn a process,
+ *  so every command in this file throws. Worth knowing, because the failure
+ *  otherwise looks exactly like having no CLIs installed. */
+export function hasBackend(): boolean {
+  return typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
+}
+
+/** Why nothing can start, said accurately.
+ *
+ *  Telling someone with all four CLIs installed to go install them sends
+ *  them off to fix the wrong thing. */
+export function noAgentsReason(): string {
+  return hasBackend()
+    ? "No agent CLIs found on your PATH."
+    : "Agents only run in the desktop app. This is the browser preview.";
+}
+
 export type AddAgentArgs = {
   label: string;
   harness: string;

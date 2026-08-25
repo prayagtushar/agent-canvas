@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { api } from "../api";
+import { api, noAgentsReason } from "../api";
 import { useStore } from "../store";
 import type { AgentFlowNode } from "../types";
 
@@ -118,7 +118,7 @@ export default function CommandBar() {
       : [harnesses.find((h) => h.available)?.name].filter(Boolean as unknown as (v: string | undefined) => v is string);
 
     if (targets.length === 0) {
-      pushToast("err", "No agent CLIs found on your PATH.");
+      pushToast("err", noAgentsReason());
       return;
     }
     const missing = targets.filter((t) => !harnesses.find((h) => h.name === t)?.available);

@@ -1,6 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("./api", () => ({
+  hasBackend: () => true,
+  noAgentsReason: () => "No agent CLIs found on your PATH.",
   api: {
     addAgent: vi.fn(),
     createWorktree: vi.fn(),

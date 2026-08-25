@@ -17,7 +17,7 @@ import WireEdge from "./WireEdge";
 import { useStore } from "../store";
 import { BUILT_IN } from "../teams";
 import type { AgentFlowNode } from "../types";
-import { api } from "../api";
+import { api, hasBackend } from "../api";
 
 const nodeTypes = {
   agent: AgentNode,
@@ -251,6 +251,21 @@ function Empty() {
   const forgetResumable = useStore((s) => s.forgetResumable);
   const installed = harnesses.filter((h) => h.available);
   const folder = workspaceRoot.split("/").filter(Boolean).pop();
+
+  if (!hasBackend()) {
+    return (
+      <div className="empty">
+        <div className="empty-inner">
+          <div className="empty-title">This is the browser preview</div>
+          <div className="empty-sub">
+            The interface renders here, but an agent needs a real terminal to
+            run in, and a browser tab cannot start one. Use{" "}
+            <code>npm run tauri dev</code>, or download a release.
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   if (installed.length === 0) {
     return (

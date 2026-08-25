@@ -423,6 +423,12 @@ then drive the canvas from the console with `window.canvas` and
 `window.terminals`. The infinite-render bug above typechecked, passed the suite,
 and painted an empty window.
 
+That browser has no backend: `invoke` is `window.__TAURI_INTERNALS__.invoke`,
+which only exists inside the webview, so every command throws there. The canvas
+says so rather than pretending, via `hasBackend()` in `src/api.ts`. To check a
+state that needs a live backend, set `window.__TAURI_INTERNALS__` to a stub and
+push the state you want with `window.canvas.setState`.
+
 The Rust suite includes real ptys: `tests/pty_session.rs` runs actual processes
 and asserts output arrives, typed prompts land, a swallowed prompt is retyped
 and then given up on, and a peer message reaches an idle agent's terminal.
