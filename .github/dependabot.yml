@@ -15,6 +15,19 @@ updates:
       xterm:
         patterns:
           - "@xterm/*"
+      # vitest and its coverage provider pin each other exactly, so a bump to
+      # one alone cannot install. The first run of this config proved it by
+      # opening a coverage-v8 4.x PR against vitest 3.x that failed npm ci.
+      vitest:
+        patterns:
+          - "vitest"
+          - "@vitest/*"
+      # Same story one layer down: the React plugin requires a matching major
+      # of vite itself.
+      vite:
+        patterns:
+          - "vite"
+          - "@vitejs/*"
 
   - package-ecosystem: cargo
     directory: /src-tauri
