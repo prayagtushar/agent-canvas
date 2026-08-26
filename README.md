@@ -296,7 +296,8 @@ route, including `/health`. The token is new on each launch, is written only int
 per-agent config files under your cache directory, and never leaves the machine.
 
 Found a vulnerability? Open a [private advisory](https://github.com/prayagtushar/agent-canvas/security/advisories/new)
-rather than a public issue.
+rather than a public issue. [SECURITY.md](SECURITY.md) has the threat model in
+full, including what counts as a bug here and what is the product working.
 
 ## Tests
 
@@ -348,8 +349,9 @@ useful thing you can file.
 
 ## Releasing
 
-Tagging is the whole process. GitHub builds macOS and Windows in parallel and
-opens a draft release with both attached; check it and publish by hand.
+Tagging is the whole process. GitHub builds macOS, Windows and Linux in
+parallel and opens a draft release with all of them attached; check it and
+publish by hand.
 
 ```sh
 npm version 0.2.0 --no-git-tag-version
@@ -360,8 +362,8 @@ git push --follow-tags
 
 `package.json` is the only version to bump: `tauri.conf.json` reads it.
 
-Every push already builds the app on both platforms, so a tag should not be
-the first time a Windows build is attempted. Running the Release workflow by
+Every push already builds the app on all three platforms, so a tag should not
+be the first time a Windows build is attempted. Running the Release workflow by
 hand from the Actions tab builds the same bundles and leaves them as workflow
 artifacts, without cutting a release.
 
@@ -407,11 +409,18 @@ from the environment on its own, so adding them is the only change needed.
 
 ## Contributing
 
-Read [AGENTS.md](AGENTS.md) first. It has the layout, the API contract, and the
-rendering rules that are easy to break in a transparent window.
+[CONTRIBUTING.md](CONTRIBUTING.md) has the setup and the checks to run before a
+pull request. [AGENTS.md](AGENTS.md) is the one to read first if you are
+changing code: the layout, the API contract between the frontend and Rust, and
+the rendering rules that are easy to break in a transparent window without
+noticing.
 
-Before a PR, run the four commands at the bottom of that file, and check UI
-changes in `npm run tauri dev` rather than a browser.
+One rule worth repeating here. Check UI changes in `npm run tauri dev`, not a
+browser. The browser has no backend behind it, and every bug that got furthest
+in this project passed the test suite.
+
+By taking part you agree to the [code of conduct](CODE_OF_CONDUCT.md).
+[CHANGELOG.md](CHANGELOG.md) tracks what has changed.
 
 ## License
 

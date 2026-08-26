@@ -1,0 +1,33 @@
+# Three ecosystems, because a Tauri app is three projects in a trench coat:
+# the web frontend, the Rust backend, and the workflows that build both.
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      # The Tauri JS packages move together and are meaningless apart.
+      tauri:
+        patterns:
+          - "@tauri-apps/*"
+      xterm:
+        patterns:
+          - "@xterm/*"
+
+  - package-ecosystem: cargo
+    directory: /src-tauri
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      tauri:
+        patterns:
+          - "tauri"
+          - "tauri-*"
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly

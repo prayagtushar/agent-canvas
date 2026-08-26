@@ -437,7 +437,7 @@ and then given up on, and a peer message reaches an idle agent's terminal.
 node examples/verify.mjs
 ```
 
-runs the three projects in `examples/`. All red on a fresh checkout. They are
+runs the four projects in `examples/`. All red on a fresh checkout. They are
 how a change to launching, wiring or hiring gets checked against real agents
 without anybody having to read terminal output and decide.
 
