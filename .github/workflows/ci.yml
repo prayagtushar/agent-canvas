@@ -146,12 +146,22 @@ jobs:
           # office rendering: this catches the view failing to draw at all,
           # which a unit test on the layout arithmetic cannot.
           WIN=$(DISPLAY=:99 xdotool search --name "Agent Canvas" | head -1)
-          if [ -n "$WIN" ]; then
-            DISPLAY=:99 xdotool windowactivate --sync "$WIN" key --window "$WIN" ctrl+o
-            sleep 3
-            DISPLAY=:99 import -window root /tmp/linux-office.png
-          else
-            echo "no window found to open the office in"
+          [ -n "$WIN" ] || { echo "no window to open the office in"; exit 1; }
+          # XTEST, not XSendEvent. `xdotool key --window` sends a synthetic
+          # event that WebKitGTK ignores, which is how the first version of
+          # this took a second identical photograph and proved nothing.
+          # Activating the window and typing without --window goes through
+          # XTEST, which the webview cannot tell from a real key.
+          DISPLAY=:99 xdotool windowactivate --sync "$WIN"
+          sleep 1
+          DISPLAY=:99 xdotool key --clearmodifiers ctrl+o
+          sleep 3
+          DISPLAY=:99 import -window root /tmp/linux-office.png
+          # The office is a full-screen overlay, so it cannot possibly look
+          # like the canvas. Identical bytes mean the key never landed.
+          if cmp -s /tmp/linux-window.png /tmp/linux-office.png; then
+            echo "ctrl+o did not reach the app: the office never opened."
+            exit 1
           fi
           # 1440x900 is what tauri.conf.json asks for. Report it rather than
           # asserting: the interesting failure is subtler than a threshold.
