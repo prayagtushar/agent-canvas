@@ -19,6 +19,7 @@ export default function Office() {
   const nodes = useStore((s) => s.nodes);
   const statuses = useStore((s) => s.statuses);
   const approvals = useStore((s) => s.approvals);
+  const errands = useStore((s) => s.errands);
   const setOfficeOpen = useStore((s) => s.setOfficeOpen);
   const revealNode = useStore((s) => s.revealNode);
 
@@ -86,7 +87,7 @@ export default function Office() {
           const spot = place({
             desk: seat,
             blocked: blocked.has(agent.id),
-            errand: null,
+            errand: errands[agent.id]?.errand ?? null,
             deskOf,
           });
           return (

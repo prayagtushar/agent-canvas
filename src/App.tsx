@@ -69,10 +69,24 @@ export default function App() {
             st.bumpUnread(payload.to);
             st.pulseWire(payload.from, payload.to);
             st.logMessage(payload.from, payload.to, payload.text);
+            // In the office this is a walk to the recipient's desk.
+            st.runErrand(payload.from, {
+              kind: "peer",
+              peer: payload.to,
+              text: payload.text,
+            });
             break;
           case "task":
             if (payload.action === "removed") st.dropTask(payload.task.id);
             else st.upsertTask(payload.task);
+            // Claiming and finishing are trips to the board. Adding one is
+            // not: whoever added it may not be on the canvas at all.
+            if (payload.by && (payload.action === "claimed" || payload.action === "done")) {
+              st.runErrand(payload.by, {
+                kind: "board",
+                text: payload.action === "claimed" ? "took a task" : "finished",
+              });
+            }
             break;
           case "approval":
             st.upsertApproval(payload.approval);
@@ -102,6 +116,9 @@ export default function App() {
             // for it, so it has to be placed, shown, and named out loud.
             const id = st.addAgentCanvasNode(payload.node);
             st.revealNode(id);
+            // In the office it comes in through the door and finds its desk.
+            // Short, because standing in a doorway is not interesting.
+            st.runErrand(id, { kind: "arrive" }, 900);
             st.pushToast(
               "ok",
               `${payload.node.label} was started by another agent.`

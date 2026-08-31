@@ -12,6 +12,7 @@ import { api, noAgentsReason } from "./api";
 import { buildReport, reportFilename } from "./report";
 import { away, notify as sendDesktopNotification } from "./notify";
 import * as terminals from "./terminals";
+import type { Errand } from "./office/place";
 import type {
   Activity,
   Team,
@@ -31,6 +32,11 @@ export const EDGE_STYLE = { stroke: "var(--wire)", strokeWidth: 1.7 };
 /** A new agent window. Sized so the CLI inside it gets the ~80 columns its
  *  layout is drawn for, rather than one it has to fold everything into. */
 export const NODE_SIZE = { width: 624, height: 392 };
+
+/** How long a trip across the office lasts, start to back at the desk.
+ *  Long enough to follow, short enough that a busy canvas is not permanently
+ *  mid-walk. */
+export const ERRAND_MS = 2600;
 
 /** Pixels of each window edge covered by floating chrome: title bar and comm
    chips on top, the rail on the left, the toolbar and command bar below. */
@@ -81,6 +87,8 @@ interface StoreState {
   focus: boolean;
   /** The office: the same agents, seen as a room rather than a graph. */
   officeOpen: boolean;
+  /** Trips agents are making across the office right now, by node. */
+  errands: Record<string, { errand: Errand; seq: number }>;
   shortcutsOpen: boolean;
   diagnosticsOpen: boolean;
   /** The agent whose diff is on screen, if any. */
@@ -149,6 +157,8 @@ interface StoreState {
   setTint: (t: number) => void;
   setFocus: (v: boolean) => void;
   setOfficeOpen: (v: boolean) => void;
+  /** Send an agent on a trip in the office view. Harmless when it is closed. */
+  runErrand: (nodeId: string, errand: Errand, ms?: number) => void;
   setShortcutsOpen: (v: boolean) => void;
   setDiagnosticsOpen: (v: boolean) => void;
   setChangesFor: (id: string | null) => void;
@@ -304,6 +314,7 @@ export const useStore = create<StoreState>()((set, get) => ({
   tint: Number(localStorage.getItem("ac.tint") ?? 0.36),
   focus: false,
   officeOpen: false,
+  errands: {},
   shortcutsOpen: false,
   diagnosticsOpen: false,
   changesFor: null,
@@ -694,6 +705,24 @@ export const useStore = create<StoreState>()((set, get) => ({
 
   setFocus: (focus) => set({ focus }),
   setOfficeOpen: (officeOpen) => set({ officeOpen }),
+
+  runErrand: (nodeId, errand, ms = ERRAND_MS) => {
+    // A newer errand replaces an older one rather than queueing behind it:
+    // what an agent is doing now is more interesting than what it just did,
+    // and a queue would run the office minutes behind the canvas.
+    const seq = (get().errands[nodeId]?.seq ?? 0) + 1;
+    set((s) => ({ errands: { ...s.errands, [nodeId]: { errand, seq } } }));
+    setTimeout(() => {
+      const current = get().errands[nodeId];
+      // Only this errand clears itself. Anything newer owns the agent now.
+      if (current?.seq !== seq) return;
+      set((s) => {
+        const next = { ...s.errands };
+        delete next[nodeId];
+        return { errands: next };
+      });
+    }, ms);
+  },
 
   setShortcutsOpen: (shortcutsOpen) => set({ shortcutsOpen }),
 

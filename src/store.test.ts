@@ -34,7 +34,7 @@ vi.mock("./terminals", () => ({
 import { api } from "./api";
 import * as notify from "./notify";
 import * as terminals from "./terminals";
-import { matchesSearch, NODE_SIZE, updateNodeData, useStore } from "./store";
+import { ERRAND_MS, matchesSearch, NODE_SIZE, updateNodeData, useStore } from "./store";
 import type { NodeInfo, Task, Team } from "./types";
 
 const initial = useStore.getState();
@@ -826,5 +826,61 @@ describe("picking a session back up", () => {
     vi.mocked(api.loadWorkspace).mockResolvedValue("{ not json");
     await expect(useStore.getState().restoreWorkspace()).resolves.toBeUndefined();
     expect(useStore.getState().resumable).toBeNull();
+  });
+});
+
+describe("errands", () => {
+  it("sends an agent out and brings it back on its own", () => {
+    vi.useFakeTimers();
+    try {
+      const st = useStore.getState();
+      st.runErrand("a1", { kind: "board", text: "took a task" });
+      expect(useStore.getState().errands.a1?.errand).toEqual({
+        kind: "board",
+        text: "took a task",
+      });
+
+      vi.advanceTimersByTime(ERRAND_MS - 1);
+      expect(useStore.getState().errands.a1).toBeDefined();
+
+      vi.advanceTimersByTime(1);
+      expect(useStore.getState().errands.a1).toBeUndefined();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("lets a newer trip replace one already running", () => {
+    vi.useFakeTimers();
+    try {
+      const st = useStore.getState();
+      st.runErrand("a1", { kind: "board", text: "took a task" });
+      vi.advanceTimersByTime(ERRAND_MS - 100);
+      st.runErrand("a1", { kind: "peer", peer: "a2", text: "over to you" });
+
+      // The first errand's timer fires here and must not cancel the second.
+      vi.advanceTimersByTime(100);
+      expect(useStore.getState().errands.a1?.errand).toMatchObject({ kind: "peer" });
+
+      // The second one still clears on its own schedule.
+      vi.advanceTimersByTime(ERRAND_MS);
+      expect(useStore.getState().errands.a1).toBeUndefined();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("keeps agents' trips apart", () => {
+    vi.useFakeTimers();
+    try {
+      const st = useStore.getState();
+      st.runErrand("a1", { kind: "board", text: "one" });
+      st.runErrand("a2", { kind: "board", text: "two" });
+      expect(Object.keys(useStore.getState().errands).sort()).toEqual(["a1", "a2"]);
+      vi.advanceTimersByTime(ERRAND_MS);
+      expect(useStore.getState().errands).toEqual({});
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

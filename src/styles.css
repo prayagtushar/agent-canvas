@@ -2926,10 +2926,22 @@ body {
   }
 }
 
-/* Away from the desk: lifted slightly, and the name is dropped so the
-   speech bubble has the space. */
+/* Away from the desk: the name drops so the speech bubble has the space,
+   and the token bobs, which is the difference between walking and sliding. */
 .office-person.is-away .office-name {
   opacity: 0;
+}
+
+.office-person.is-away .office-token {
+  animation: office-step 420ms ease-in-out infinite;
+  transform-box: fill-box;
+  transform-origin: center;
+}
+
+@keyframes office-step {
+  50% {
+    transform: translateY(-2.5px);
+  }
 }
 
 .office-bubble rect {

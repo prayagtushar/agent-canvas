@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { BOARD, MANAGER } from "./layout";
+import { BOARD, DOOR, MANAGER } from "./layout";
 import { place, type PlaceInput } from "./place";
 
 const DESK = { x: 500, y: 400 };
@@ -68,5 +68,19 @@ describe("place", () => {
       expect(near(p.point, MANAGER)).toBeGreaterThan(0);
       expect(near(p.point, BOARD)).toBeGreaterThan(0);
     }
+  });
+});
+
+describe("arriving", () => {
+  it("stands a newly hired agent in the doorway", () => {
+    const p = at({ errand: { kind: "arrive" } });
+    expect(p.point).toEqual(DOOR);
+    expect(p.away).toBe(true);
+    expect(p.says).toBe("just hired");
+  });
+
+  it("is still outranked by being blocked on you", () => {
+    const p = at({ blocked: true, errand: { kind: "arrive" } });
+    expect(p.says).toBe("needs you");
   });
 });
