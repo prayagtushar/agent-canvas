@@ -20,6 +20,7 @@ export default function Office() {
   const statuses = useStore((s) => s.statuses);
   const approvals = useStore((s) => s.approvals);
   const errands = useStore((s) => s.errands);
+  const edges = useStore((s) => s.edges);
   const setOfficeOpen = useStore((s) => s.setOfficeOpen);
   const revealNode = useStore((s) => s.revealNode);
 
@@ -73,7 +74,26 @@ export default function Office() {
       >
         <Room />
 
-        {/* Desks first, so tokens stand in front of their own furniture. */}
+        {/* Who can see whom. Under everything else: a connection is context
+            for the room, not an object in it. Both ends have to be seated,
+            so a wire to the board or a note draws nothing. */}
+        {edges.map((e) => {
+          const a = deskOf(e.source);
+          const b = deskOf(e.target);
+          if (!a || !b) return null;
+          return (
+            <line
+              key={e.id}
+              className="office-wire"
+              x1={a.x}
+              y1={a.y}
+              x2={b.x}
+              y2={b.y}
+            />
+          );
+        })}
+
+        {/* Desks next, so tokens stand in front of their own furniture. */}
         {agents.map((agent, i) => {
           const seat = seats[i];
           if (!seat) return null;

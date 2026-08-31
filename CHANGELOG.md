@@ -23,6 +23,15 @@ Downloads appear on the
   transparent, with vibrancy on macOS and mica on Windows.
 - Task board, shared memory and note nodes live on the canvas alongside agents.
 
+### The office
+
+- `⌘O` draws the canvas as a room: a desk per agent, you at the top, the board
+  and memory on the walls. Agents walk to a peer's desk to deliver a message,
+  to the board to claim or finish work, and to your desk when they are blocked
+  on you. A hired agent comes in through the door.
+- Driven by Bus events rather than by guessing from a transcript, which is what
+  comparable tools are reduced to.
+
 ### Agents working together
 
 - A wire between two agents is what lets them see each other. Connected agents

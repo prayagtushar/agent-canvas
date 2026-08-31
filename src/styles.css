@@ -2854,6 +2854,15 @@ body {
   stroke-dasharray: 4 3;
 }
 
+/* A connection between two seated agents. Faint: it is the reason a walk is
+   possible, not the walk itself. */
+.office-wire {
+  stroke: var(--wire);
+  stroke-width: 1.4;
+  stroke-opacity: 0.3;
+  stroke-linecap: round;
+}
+
 .office-desk {
   fill: rgba(255, 255, 255, 0.045);
   stroke: rgba(255, 255, 255, 0.08);

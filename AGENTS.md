@@ -241,6 +241,36 @@ Two things learned tuning it, both verified against real CLIs:
 
 `tests/live_harness.rs` asserts the behaviour against each installed CLI.
 
+## The office is a lens, not a second app
+
+`src/office/` is arithmetic and nothing else: where desks go, where a visitor
+stands, how long a walk takes. It is kept out of React so the arrangement can
+be tested without rendering, and `src/components/Office.tsx` only draws what it
+returns.
+
+Three things about it are easy to get wrong.
+
+**It overlays the canvas, it does not replace it.** The canvas owns the xterm
+instances. Swapping it out for the office would dispose every terminal and
+throw away all the scrollback, and coming back would show empty windows. So
+`officeOpen` renders `<Office/>` on top and leaves `<Canvas/>` mounted.
+
+**Nothing in the room is invented.** Every trip is a Bus event that already
+existed: `message` walks the sender to the recipient, a task `claimed` or
+`done` walks that agent to the board, `node` brings a hired agent in through
+the door, and an unanswered approval stands one at your desk. If you find
+yourself adding an idle-wander animation, stop: the value of this view is that
+movement is evidence.
+
+**Being blocked on you outranks everything.** `place()` checks `blocked` first
+and there is a test that says so. An agent that has stopped and is waiting on a
+person is the most useful thing the room can show, and a message going out a
+moment earlier must not bury it.
+
+Trips replace rather than queue, each carrying a sequence number so a finishing
+trip cannot clear the one that replaced it. Without that, a busy board leaves
+the office running minutes behind the canvas.
+
 ## Agents are real terminals
 
 Each agent is the CLI as the user would run it, on the far end of a pty, drawn

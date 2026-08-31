@@ -264,6 +264,34 @@ New agents get a call-sign of their own (Orion, Juno, Vega…), so two Claude
 agents are never both called "claude". Double-click a name to change it; peers
 see the new one too.
 
+### The office
+
+`⌘O` draws the same canvas as a room. Every agent gets a desk, you get the
+desk at the top, and the shared board and memory sit on the walls.
+
+It moves on things that actually happened, not on a timer:
+
+| In the room | What it means |
+| --- | --- |
+| Standing at your desk, "needs you" | That agent called `ask_user` and has stopped |
+| Walking to another desk | It sent that peer a message, and the bubble is the message |
+| Walking to the board | It claimed a task, or finished one |
+| Coming in through the door | Another agent hired it |
+| Token breathing | Mid-turn |
+| Faint line between two desks | They are wired together and can see each other |
+
+There are several of these for coding agents now, and the others read a
+harness's transcript file and infer from it. [Pixel Agents](https://www.mdskills.ai/skills/pixel-agents)
+says outright that the format gives no clear signal for when an agent is
+waiting on input, so it falls back to idle timers that misfire. This canvas
+does not have that problem: it owns the pty, so idle, running and waiting are
+read rather than guessed, and it owns the Bus, so it knows who messaged whom
+and who claimed what. A trip across this room always means something happened.
+
+It is a glance view rather than a place to work — a floor plan cannot show you
+terminal output. Click any desk to go back to the canvas with that agent
+selected, or press `Esc`.
+
 ### Keyboard
 
 | Key | Action |

@@ -12,6 +12,7 @@ const KEYS: [string, string][] = [
   ["⌘S", "Save the workspace"],
   ["⌘.", "Interrupt everything running"],
   ["⌘\\", "Toggle Focus mode"],
+  ["⌘O", "See the canvas as an office"],
   ["?", "Show this list"],
   ["Esc", "Clear search, close panels"],
   ["Right-click", "Connect agents, and the canvas menu"],
