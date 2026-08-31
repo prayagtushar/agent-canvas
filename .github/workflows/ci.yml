@@ -72,6 +72,68 @@ jobs:
       - if: runner.os != 'Windows'
         run: cargo test --manifest-path src-tauri/Cargo.toml
 
+  linux-render:
+    # Nobody developing this runs Linux, so it is the one platform where the
+    # window can be wrong and stay wrong. It already was: the base config sets
+    # transparent: true and there is no window effect to ask for on Linux, so
+    # the release shipped a see-through window over whatever the compositor
+    # felt like. Reading the config would not have caught it. Starting the app
+    # and looking at the pixels does.
+    #
+    # The screenshot is uploaded either way. When this fails, download it.
+    name: Linux (does the window render?)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build and runtime dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev \
+            librsvg2-dev patchelf libxdo-dev libsoup-3.0-dev \
+            xvfb imagemagick dbus-x11
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+          key: linux-render
+      - run: npm ci
+      - run: npm run build
+      - run: cargo build --manifest-path src-tauri/Cargo.toml
+
+      - name: Start it on a virtual screen
+        env:
+          # Both are the usual price of webkit2gtk on a machine with no GPU.
+          WEBKIT_DISABLE_COMPOSITING_MODE: "1"
+          WEBKIT_DISABLE_DMABUF_RENDERER: "1"
+        run: |
+          Xvfb :99 -screen 0 1440x900x24 &
+          sleep 3
+          echo "DISPLAY=:99" >> "$GITHUB_ENV"
+          DISPLAY=:99 dbus-run-session -- \
+            ./src-tauri/target/debug/agent-canvas > /tmp/app.log 2>&1 &
+          # The first paint is behind a webkit process launch, so give it room.
+          sleep 25
+          pgrep -f target/debug/agent-canvas > /dev/null \
+            || { echo "the app exited on startup:"; cat /tmp/app.log; exit 1; }
+
+      - name: Photograph it
+        run: DISPLAY=:99 import -window root /tmp/linux-window.png
+
+      - name: Is that a rendered window?
+        run: node .github/scripts/check-render.mjs /tmp/linux-window.png
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: linux-window
+          path: |
+            /tmp/linux-window.png
+            /tmp/app.log
+
   bundle:
     # Proves the thing users actually download still builds, before a tag
     # makes that everyone's problem. A release-profile build of the whole
