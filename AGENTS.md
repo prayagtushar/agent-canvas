@@ -98,6 +98,23 @@ Three things must all hold or the wallpaper stops showing through:
    layer stay `background: transparent`. The only paint between wallpaper and
    work is `.canvas-wrap::before`, whose alpha is the `--tint` variable.
 
+### Platform config files replace, they do not merge
+
+`tauri.macos.conf.json`, `tauri.windows.conf.json` and
+`tauri.linux.conf.json` are merged over `tauri.conf.json`, but the `windows`
+array is swapped whole rather than merged element by element. Every key the
+base window sets and a platform file leaves out is dropped, not inherited.
+
+The app asked for 1440x900 and opened at 800x600, Tauri's default, on all
+three platforms, because all three had a platform file that named only the
+one or two keys it wanted to change. `minWidth` and `minHeight` went the same
+way, so the window could be dragged below the size the layout is built for.
+Nothing printed the size, and 800x600 looks like a window rather than like a
+bug, so it survived a release.
+
+So every platform file repeats the shared keys. `src/window-config.test.ts`
+compares them against the base and fails if one drifts.
+
 ### Where there is no wallpaper
 
 Only macOS and Windows ask for a window effect, so only they have anything
