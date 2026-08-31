@@ -140,6 +140,19 @@ jobs:
           pgrep -f target/release/agent-canvas > /dev/null \
             || { echo "the app exited on startup:"; cat /tmp/app.log; exit 1; }
           DISPLAY=:99 import -window root /tmp/linux-window.png
+          # And again in the office. Ctrl-O is the shortcut on Linux, sent to
+          # the window rather than the root so it reaches the webview. An
+          # empty canvas gives the office's empty state, which is still the
+          # office rendering: this catches the view failing to draw at all,
+          # which a unit test on the layout arithmetic cannot.
+          WIN=$(DISPLAY=:99 xdotool search --name "Agent Canvas" | head -1)
+          if [ -n "$WIN" ]; then
+            DISPLAY=:99 xdotool windowactivate --sync "$WIN" key --window "$WIN" ctrl+o
+            sleep 3
+            DISPLAY=:99 import -window root /tmp/linux-office.png
+          else
+            echo "no window found to open the office in"
+          fi
           # 1440x900 is what tauri.conf.json asks for. Report it rather than
           # asserting: the interesting failure is subtler than a threshold.
           echo "window geometry:"
@@ -185,4 +198,5 @@ jobs:
           name: linux-window
           path: |
             /tmp/linux-window.png
+            /tmp/linux-office.png
             /tmp/app.log
