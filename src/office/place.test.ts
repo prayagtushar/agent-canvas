@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { BOARD, DOOR, MANAGER } from "./layout";
+import { BOARD, DOOR, MANAGER, SHELF } from "./layout";
 import { place, type PlaceInput } from "./place";
 
 const DESK = { x: 500, y: 400 };
@@ -81,6 +81,20 @@ describe("arriving", () => {
 
   it("is still outranked by being blocked on you", () => {
     const p = at({ blocked: true, errand: { kind: "arrive" } });
+    expect(p.says).toBe("needs you");
+  });
+});
+
+describe("the shelf", () => {
+  it("walks a memory write over to the shelf", () => {
+    const p = at({ errand: { kind: "shelf", text: "wrote it down" } });
+    expect(near(p.point, SHELF)).toBeLessThan(near(DESK, SHELF));
+    expect(p.away).toBe(true);
+    expect(p.says).toBe("wrote it down");
+  });
+
+  it("still yields to being blocked on you", () => {
+    const p = at({ blocked: true, errand: { kind: "shelf", text: "wrote it down" } });
     expect(p.says).toBe("needs you");
   });
 });

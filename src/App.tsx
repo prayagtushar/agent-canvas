@@ -16,6 +16,7 @@ import Activity from "./components/Activity";
 import Approvals from "./Approvals";
 import { api } from "./api";
 import { useStore } from "./store";
+import { justWrote } from "./office/memory";
 import * as terminals from "./terminals";
 import * as notify from "./notify";
 import * as updates from "./updates";
@@ -100,9 +101,15 @@ export default function App() {
           case "edges":
             st.edgesChanged(payload.edges);
             break;
-          case "memory":
+          case "memory": {
+            // The Bus sends the whole list, so who actually wrote is a
+            // comparison. In the office that is a walk to the shelf.
+            for (const author of justWrote(st.memory, payload.memory)) {
+              st.runErrand(author, { kind: "shelf", text: "wrote it down" });
+            }
             st.setMemory(payload.memory);
             break;
+          }
           case "comm":
             st.setComm(payload.comm);
             break;

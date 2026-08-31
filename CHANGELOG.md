@@ -27,8 +27,11 @@ Downloads appear on the
 
 - `⌘O` draws the canvas as a room: a desk per agent, you at the top, the board
   and memory on the walls. Agents walk to a peer's desk to deliver a message,
-  to the board to claim or finish work, and to your desk when they are blocked
-  on you. A hired agent comes in through the door.
+  to the board to claim or finish work, to the shelf when they write to shared
+  memory, and to your desk when they are blocked on you. A hired agent comes in
+  through the door.
+- A strip along the top of the office counts agents, working agents and agents
+  waiting on you, alongside the turn budget and reported spend.
 - Driven by Bus events rather than by guessing from a transcript, which is what
   comparable tools are reduced to.
 

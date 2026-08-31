@@ -276,6 +276,7 @@ It moves on things that actually happened, not on a timer:
 | Standing at your desk, "needs you" | That agent called `ask_user` and has stopped |
 | Walking to another desk | It sent that peer a message, and the bubble is the message |
 | Walking to the board | It claimed a task, or finished one |
+| Walking to the shelf | It wrote something to shared memory |
 | Coming in through the door | Another agent hired it |
 | Token breathing | Mid-turn |
 | Faint line between two desks | They are wired together and can see each other |
@@ -287,6 +288,10 @@ waiting on input, so it falls back to idle timers that misfire. This canvas
 does not have that problem: it owns the pty, so idle, running and waiting are
 read rather than guessed, and it owns the Bus, so it knows who messaged whom
 and who claimed what. A trip across this room always means something happened.
+
+The strip along the top carries the rest: how many agents are in, how many are
+mid-turn, how many are waiting on you, the turn budget, and what the CLIs have
+reported spending. Cost is absent rather than zero when nothing printed one.
 
 It is a glance view rather than a place to work — a floor plan cannot show you
 terminal output. Click any desk to go back to the canvas with that agent

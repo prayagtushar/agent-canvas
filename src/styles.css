@@ -2803,6 +2803,7 @@ body {
   align-items: center;
   justify-content: center;
   padding: 46px 24px 28px;
+  flex-direction: column;
   /* Nearly opaque. At anything less the canvas reads through as clutter
      behind the floor plan, and two views of the same agents at once is
      worse than either. */
@@ -2821,6 +2822,38 @@ body {
     opacity: 0;
     transform: scale(0.985);
   }
+}
+
+/* One line of state above the room, so the office answers "what is happening"
+   without needing anything read out of a terminal. */
+.office-strip {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  max-width: 1180px;
+  padding: 0 4px 10px;
+  font-family: var(--ui);
+  font-size: 12px;
+  color: var(--dim);
+}
+
+.office-strip b {
+  color: var(--txt);
+  font-weight: 600;
+}
+
+.office-strip-gap {
+  flex: 1;
+}
+
+.office-live b {
+  color: var(--live);
+}
+
+.office-blocked b {
+  color: var(--yellow);
 }
 
 .office-room {

@@ -21,6 +21,7 @@ export default function Office() {
   const approvals = useStore((s) => s.approvals);
   const errands = useStore((s) => s.errands);
   const edges = useStore((s) => s.edges);
+  const comm = useStore((s) => s.comm);
   const setOfficeOpen = useStore((s) => s.setOfficeOpen);
   const revealNode = useStore((s) => s.revealNode);
 
@@ -63,8 +64,33 @@ export default function Office() {
     );
   }
 
+  const working = agents.filter(
+    (a) => (statuses[a.id] ?? a.data.status) === "running"
+  ).length;
+
   return (
     <div className="office">
+      <div className="office-strip">
+        <span>
+          <b>{agents.length}</b> {agents.length === 1 ? "agent" : "agents"}
+        </span>
+        <span className={working ? "office-live" : "muted"}>
+          <b>{working}</b> working
+        </span>
+        {blocked.size > 0 && (
+          <span className="office-blocked">
+            <b>{blocked.size}</b> {blocked.size === 1 ? "needs" : "need"} you
+          </span>
+        )}
+        <span className="office-strip-gap" />
+        <span className="muted">
+          {comm.turns}/{comm.turnCap} turns
+        </span>
+        {/* Absent rather than zero: a CLI that prints no cost has not told us
+            it spent nothing, it has told us nothing. */}
+        {comm.costUsd > 0 && <span className="muted">${comm.costUsd.toFixed(2)}</span>}
+      </div>
+
       <svg
         className="office-room"
         viewBox={`0 0 ${ROOM.w} ${ROOM.h}`}

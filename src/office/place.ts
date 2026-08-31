@@ -1,4 +1,4 @@
-import { BOARD, DOOR, MANAGER, standingAt, type Point } from "./layout";
+import { BOARD, DOOR, MANAGER, SHELF, standingAt, type Point } from "./layout";
 
 /** Somewhere an agent can be sent, and why.
  *
@@ -13,6 +13,8 @@ export type Errand =
   | { kind: "peer"; peer: string; text: string }
   /** Taking work off the board, or putting a result back. */
   | { kind: "board"; text: string }
+  /** Writing something down where every peer can read it. */
+  | { kind: "shelf"; text: string }
   /** Just hired by another agent, and not at a desk yet. */
   | { kind: "arrive" };
 
@@ -68,6 +70,10 @@ export function place(input: PlaceInput): Placement {
     // Stand in the doorway. Clearing this errand sends the token to its desk,
     // and the walk is the same transition every other trip uses.
     return { point: DOOR, away: true, says: "just hired" };
+  }
+
+  if (errand?.kind === "shelf") {
+    return { point: standingAt(SHELF, desk), away: true, says: errand.text };
   }
 
   if (errand?.kind === "board") {
