@@ -79,6 +79,8 @@ interface StoreState {
   search: string;
   tint: number;
   focus: boolean;
+  /** The office: the same agents, seen as a room rather than a graph. */
+  officeOpen: boolean;
   shortcutsOpen: boolean;
   diagnosticsOpen: boolean;
   /** The agent whose diff is on screen, if any. */
@@ -146,6 +148,7 @@ interface StoreState {
   setSearch: (s: string) => void;
   setTint: (t: number) => void;
   setFocus: (v: boolean) => void;
+  setOfficeOpen: (v: boolean) => void;
   setShortcutsOpen: (v: boolean) => void;
   setDiagnosticsOpen: (v: boolean) => void;
   setChangesFor: (id: string | null) => void;
@@ -300,6 +303,7 @@ export const useStore = create<StoreState>()((set, get) => ({
   search: "",
   tint: Number(localStorage.getItem("ac.tint") ?? 0.36),
   focus: false,
+  officeOpen: false,
   shortcutsOpen: false,
   diagnosticsOpen: false,
   changesFor: null,
@@ -689,6 +693,7 @@ export const useStore = create<StoreState>()((set, get) => ({
   },
 
   setFocus: (focus) => set({ focus }),
+  setOfficeOpen: (officeOpen) => set({ officeOpen }),
 
   setShortcutsOpen: (shortcutsOpen) => set({ shortcutsOpen }),
 

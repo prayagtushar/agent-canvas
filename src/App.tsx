@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import { listen } from "@tauri-apps/api/event";
 import { ReactFlowProvider } from "@xyflow/react";
 import Canvas from "./components/Canvas";
+import Office from "./components/Office";
 import Toolbar from "./components/Toolbar";
 import CommandBar from "./components/CommandBar";
 import TitleBar from "./components/TitleBar";
@@ -23,6 +24,7 @@ import type { BusEvent } from "./types";
 export default function App() {
   const tint = useStore((s) => s.tint);
   const focus = useStore((s) => s.focus);
+  const officeOpen = useStore((s) => s.officeOpen);
   const theme = useStore((s) => s.theme);
   // Anything in the right-hand dock: other right-edge chrome steps aside.
   const docked = useStore(
@@ -237,6 +239,9 @@ export default function App() {
       } else if (meta && e.key === "0") {
         e.preventDefault();
         st.frameAll();
+      } else if (meta && e.key === "o") {
+        e.preventDefault();
+        st.setOfficeOpen(!st.officeOpen);
       } else if (meta && e.key === "j") {
         e.preventDefault();
         st.setActivityOpen(!st.activityOpen);
@@ -250,7 +255,8 @@ export default function App() {
         e.preventDefault();
         st.setShortcutsOpen(!st.shortcutsOpen);
       } else if (e.key === "Escape") {
-        st.setSearch("");
+        if (st.officeOpen) st.setOfficeOpen(false);
+        else st.setSearch("");
       }
     };
     window.addEventListener("keydown", onKey);
@@ -260,11 +266,15 @@ export default function App() {
   return (
     <ReactFlowProvider>
     <div
-      className={`shell ${focus ? "focus" : ""} ${docked ? "has-dock" : ""}`}
+      className={`shell ${focus ? "focus" : ""} ${officeOpen ? "office-mode" : ""} ${docked ? "has-dock" : ""}`}
       data-theme={theme}
       style={{ ["--tint" as string]: String(tint) }}
     >
       <Canvas />
+      {/* An overlay rather than a swap: the canvas owns the terminal
+          emulators, and unmounting it would throw away every agent's
+          scrollback to show a floor plan. */}
+      {officeOpen && <Office />}
       <Toolbar />
       <CommandBar />
       <TitleBar />

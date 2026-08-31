@@ -2769,3 +2769,226 @@ body {
   color: var(--dim);
   font-weight: 600;
 }
+
+/* ============================================================
+   The office
+
+   The canvas seen as a room. It sits over the canvas rather than
+   replacing it, because the canvas owns the terminal emulators.
+
+   Everything moves with `transform` and `opacity` only, so a walk across
+   the room is composited rather than laid out. No `filter` and no
+   `backdrop-filter`, for the reasons at the top of this file.
+   ============================================================ */
+
+/* The office is a mode, not a panel: the canvas chrome underneath is for
+   working on a graph, and none of it applies to a room. The title bar stays,
+   because that is where the way out is. */
+.shell.office-mode .rail,
+.shell.office-mode .toolbar-panel,
+.shell.office-mode .comm-chips,
+.shell.office-mode .commandbar-panel,
+.shell.office-mode .react-flow__minimap {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.office {
+  position: absolute;
+  inset: 0;
+  /* Above the canvas chrome, below the title bar and the right-hand dock:
+     an approval is still the thing you must answer. */
+  z-index: 8;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 46px 24px 28px;
+  /* Nearly opaque. At anything less the canvas reads through as clutter
+     behind the floor plan, and two views of the same agents at once is
+     worse than either. */
+  background: rgba(6, 9, 16, 0.985);
+  animation: office-in 220ms ease both;
+}
+
+/* Step aside for the right-hand dock, so an approval never lands on top of
+   the agent that raised it. */
+.shell.has-dock .office {
+  padding-right: 330px;
+}
+
+@keyframes office-in {
+  from {
+    opacity: 0;
+    transform: scale(0.985);
+  }
+}
+
+.office-room {
+  width: 100%;
+  height: 100%;
+  max-width: 1180px;
+  overflow: visible;
+}
+
+.office-floor {
+  fill: rgba(14, 19, 28, 0.55);
+  stroke: var(--glass-line);
+  stroke-width: 1;
+}
+
+.office-manager-desk {
+  fill: rgba(61, 139, 253, 0.16);
+  stroke: rgba(61, 139, 253, 0.45);
+  stroke-width: 1;
+}
+
+.office-wall-thing,
+.office-door {
+  fill: rgba(255, 255, 255, 0.05);
+  stroke: var(--glass-line);
+  stroke-width: 1;
+}
+
+.office-door {
+  fill: rgba(255, 255, 255, 0.02);
+  stroke-dasharray: 4 3;
+}
+
+.office-desk {
+  fill: rgba(255, 255, 255, 0.045);
+  stroke: rgba(255, 255, 255, 0.08);
+  stroke-width: 1;
+}
+
+.office-label {
+  fill: var(--faint);
+  font-family: var(--ui);
+  font-size: 12px;
+  letter-spacing: 0.02em;
+}
+
+/* ---- one agent ---- */
+
+.office-person {
+  cursor: pointer;
+  transition-property: transform;
+  transition-timing-function: cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+
+.office-token {
+  transition: r 160ms ease;
+}
+
+.office-person:hover .office-token {
+  r: 19;
+}
+
+.office-person:focus-visible {
+  outline: none;
+}
+
+.office-person:focus-visible .office-token {
+  stroke: #fff;
+  stroke-width: 2;
+}
+
+.office-initials {
+  fill: #080b12;
+  font-family: var(--ui);
+  font-size: 12px;
+  font-weight: 600;
+  pointer-events: none;
+}
+
+.office-name {
+  fill: var(--dim);
+  font-family: var(--ui);
+  font-size: 11.5px;
+  pointer-events: none;
+}
+
+.office-status {
+  stroke: #0d1015;
+  stroke-width: 2;
+}
+
+/* Working: the token breathes. Slow and small, because a room of agents all
+   pulsing at once is a christmas tree. */
+.office-person.is-working .office-token {
+  animation: office-breathe 2.4s ease-in-out infinite;
+  transform-box: fill-box;
+  transform-origin: center;
+}
+
+@keyframes office-breathe {
+  50% {
+    transform: scale(1.09);
+  }
+}
+
+/* Away from the desk: lifted slightly, and the name is dropped so the
+   speech bubble has the space. */
+.office-person.is-away .office-name {
+  opacity: 0;
+}
+
+.office-bubble rect {
+  fill: rgba(20, 23, 30, 0.96);
+  stroke: var(--glass-line);
+  stroke-width: 1;
+}
+
+.office-bubble text {
+  fill: var(--txt);
+  font-family: var(--ui);
+  font-size: 11.5px;
+}
+
+.office-person.is-away .office-bubble {
+  animation: office-say 200ms ease both;
+}
+
+@keyframes office-say {
+  from {
+    opacity: 0;
+    transform: translate(0, -44px);
+  }
+}
+
+/* ---- nobody here yet ---- */
+
+.office-empty {
+  max-width: 440px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  align-items: center;
+}
+
+.office-back {
+  margin-top: 6px;
+  padding: 7px 14px;
+  border-radius: 8px;
+  border: 1px solid var(--glass-line);
+  background: var(--glass);
+  color: var(--txt);
+  font-family: var(--ui);
+  font-size: 12.5px;
+  cursor: pointer;
+  transition: background 0.12s ease;
+}
+
+.office-back:hover {
+  background: var(--glass-hi);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .office,
+  .office-person,
+  .office-bubble,
+  .office-person.is-working .office-token {
+    animation: none;
+    transition: none;
+  }
+}

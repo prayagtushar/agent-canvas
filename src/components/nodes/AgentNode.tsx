@@ -5,35 +5,7 @@ import { matchesSearch, NODE_SIZE, updateNodeData, useStore } from "../../store"
 import * as terminals from "../../terminals";
 import type { AgentFlowNode } from "../../types";
 import AgentTerminal from "./AgentTerminal";
-
-const STATUS_COLOR: Record<string, string> = {
-  idle: "#949cab",
-  running: "#2fd45e",
-  waiting: "#febc2e",
-  exited: "#ff5f57",
-  error: "#ff5f57",
-};
-
-/** The expanding ring around the status dot, drawn in the dot's own colour so
- *  a waiting agent pulses amber and a working one green. */
-const STATUS_RING: Record<string, string> = {
-  running: "rgba(47, 212, 94, 0.55)",
-  waiting: "rgba(254, 188, 46, 0.55)",
-};
-
-const TAG_CLASS: Record<string, string> = {
-  claude: "tag-claude",
-  codex: "tag-codex",
-  gemini: "tag-gemini",
-  opencode: "tag-opencode",
-};
-
-const HARNESS_LABEL: Record<string, string> = {
-  claude: "Claude Code",
-  codex: "Codex",
-  gemini: "Gemini CLI",
-  opencode: "opencode",
-};
+import { HARNESS_LABEL, STATUS_COLOR, STATUS_RING, TAG_CLASS } from "../../harness";
 
 /** Escape cancels a turn in Claude Code and the Gemini-family CLIs; the rest
  *  take Ctrl-C. The backend picks per harness — this is only what the button

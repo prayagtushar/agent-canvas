@@ -40,6 +40,8 @@ export default function TitleBar() {
   const statuses = useStore((s) => s.statuses);
   const focus = useStore((s) => s.focus);
   const setFocus = useStore((s) => s.setFocus);
+  const officeOpen = useStore((s) => s.officeOpen);
+  const setOfficeOpen = useStore((s) => s.setOfficeOpen);
   const pushToast = useStore((s) => s.pushToast);
   const saveWorkspace = useStore((s) => s.saveWorkspace);
   const workspaceRoot = useStore((s) => s.workspaceRoot);
@@ -187,6 +189,18 @@ export default function TitleBar() {
             </div>
           )}
         </div>
+        <button
+          className="tb-pill"
+          title="See the canvas as a room (⌘O)"
+          onClick={() => setOfficeOpen(!officeOpen)}
+          style={
+            officeOpen
+              ? { background: "rgba(61,139,253,0.26)", borderColor: "rgba(61,139,253,0.5)" }
+              : undefined
+          }
+        >
+          Office
+        </button>
         <button
           className="tb-pill"
           title="Hide the rail, toolbar and minimap"
