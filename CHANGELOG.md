@@ -30,6 +30,10 @@ Downloads appear on the
   to the board to claim or finish work, to the shelf when they write to shared
   memory, and to your desk when they are blocked on you. A hired agent comes in
   through the door.
+- Hovering a desk shows that agent's role, status and recent peer traffic
+  without leaving the office. Unread peer messages show as a badge on the
+  token, and a token away from its desk casts a shadow so sitting and standing
+  read apart.
 - A strip along the top of the office counts agents, working agents and agents
   waiting on you, alongside the turn budget and reported spend.
 - Driven by Bus events rather than by guessing from a transcript, which is what

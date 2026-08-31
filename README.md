@@ -279,15 +279,39 @@ It moves on things that actually happened, not on a timer:
 | Walking to the shelf | It wrote something to shared memory |
 | Coming in through the door | Another agent hired it |
 | Token breathing | Mid-turn |
+| Purple badge on a token | Peer messages it has not read yet |
+| Shadow under a token | It is standing, not sitting |
 | Faint line between two desks | They are wired together and can see each other |
 
-There are several of these for coding agents now, and the others read a
+Ideas worth taking came from the ones that already exist.
+[Ctrl/Cubicles](https://marketplace.visualstudio.com/items?itemName=bulletproof-sh.ctrl)
+floats activity indicators over its characters and pairs the office with a
+session inspector; both are here, with the indicator counting real unread
+messages and the inspector staying inside the room instead of opening a
+separate panel. [Pixel Agents](https://www.mdskills.ai/skills/pixel-agents)
+walks agents to a desk and sits them down, which is where the sitting and
+standing distinction comes from.
+[agents-in-the-office](https://github.com/gukosowa/agents-in-the-office) sends
+its characters to a specific object for a specific tool, which is the board and
+the shelf here.
+
+Two things were deliberately left out. There is no idle wandering, because
+movement here is meant to be evidence that something happened, and no pixel-art
+tileset: it fights a transparent glass app, five products already look like
+that, and those assets carry licences nobody wants to read.
+
+What none of them can do is know for certain. They read a
 harness's transcript file and infer from it. [Pixel Agents](https://www.mdskills.ai/skills/pixel-agents)
 says outright that the format gives no clear signal for when an agent is
 waiting on input, so it falls back to idle timers that misfire. This canvas
 does not have that problem: it owns the pty, so idle, running and waiting are
 read rather than guessed, and it owns the Bus, so it knows who messaged whom
 and who claimed what. A trip across this room always means something happened.
+
+Hovering a desk shows that agent's role, harness, status and its last few
+messages, in a panel at the bottom of the room. Watching a token move tells you
+something happened but not what, and having to leave for the canvas to find out
+defeats the point of a glance view. Clicking still takes you to the canvas.
 
 The strip along the top carries the rest: how many agents are in, how many are
 mid-turn, how many are waiting on you, the turn budget, and what the CLIs have

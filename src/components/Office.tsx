@@ -1,9 +1,16 @@
-import { useMemo } from "react";
-import { harnessColor, initials, STATUS_COLOR } from "../harness";
+import { useMemo, useState } from "react";
+import {
+  harnessColor,
+  HARNESS_LABEL,
+  initials,
+  STATUS_COLOR,
+  TAG_CLASS,
+} from "../harness";
 import { BOARD, DOOR, MANAGER, ROOM, SHELF, desks, walkMs } from "../office/layout";
 import { place } from "../office/place";
+import { directionOf, recentFor } from "../office/peek";
 import { useStore } from "../store";
-import type { AgentFlowNode } from "../types";
+import type { Activity, AgentFlowNode } from "../types";
 
 /** The canvas, seen as a room.
  *
@@ -22,8 +29,11 @@ export default function Office() {
   const errands = useStore((s) => s.errands);
   const edges = useStore((s) => s.edges);
   const comm = useStore((s) => s.comm);
+  const unread = useStore((s) => s.unread);
+  const activity = useStore((s) => s.activity);
   const setOfficeOpen = useStore((s) => s.setOfficeOpen);
   const revealNode = useStore((s) => s.revealNode);
+  const labelOf = useStore((s) => s.labelOf);
 
   const agents = useMemo(
     () => nodes.filter((n): n is AgentFlowNode => n.type === "agent"),
@@ -63,6 +73,11 @@ export default function Office() {
       </div>
     );
   }
+
+  // Which desk the pointer is over. Hovering inspects; clicking still leaves
+  // for the canvas.
+  const [peekAt, setPeekAt] = useState<string | null>(null);
+  const peeked = agents.find((a) => a.id === peekAt) ?? null;
 
   const working = agents.filter(
     (a) => (statuses[a.id] ?? a.data.status) === "running"
@@ -147,6 +162,8 @@ export default function Office() {
               home={seat}
               away={spot.away}
               says={spot.says}
+              unread={unread[agent.id] ?? 0}
+              onPeek={(on) => setPeekAt(on ? agent.id : null)}
               onSelect={() => {
                 setOfficeOpen(false);
                 revealNode(agent.id);
@@ -155,6 +172,74 @@ export default function Office() {
           );
         })}
       </svg>
+
+      {peeked && (
+        <Peek
+          name={peeked.data.label}
+          role={peeked.data.role}
+          harness={peeked.data.harness}
+          status={statuses[peeked.id] ?? peeked.data.status ?? "idle"}
+          lines={recentFor(activity, peeked.id)}
+          nodeId={peeked.id}
+          labelOf={labelOf}
+        />
+      )}
+    </div>
+  );
+}
+
+/** What an agent has been up to, without leaving the room.
+ *
+ *  Anchored to the bottom rather than to the desk: a panel that follows the
+ *  pointer around covers the very tokens you are trying to watch. */
+function Peek({
+  name,
+  role,
+  harness,
+  status,
+  lines,
+  nodeId,
+  labelOf,
+}: {
+  name: string;
+  role?: string;
+  harness: string;
+  status: string;
+  lines: Activity[];
+  nodeId: string;
+  labelOf: (id: string) => string;
+}) {
+  return (
+    <div className="office-peek">
+      <div className="office-peek-head">
+        <span className="office-peek-name">{name}</span>
+        <span className={`harness-tag ${TAG_CLASS[harness] ?? ""}`}>
+          {HARNESS_LABEL[harness] ?? harness}
+        </span>
+        <span
+          className="office-peek-dot"
+          style={{ background: STATUS_COLOR[status] ?? STATUS_COLOR.idle }}
+        />
+        <span className="muted">{status}</span>
+      </div>
+      {role && <div className="office-peek-role">{role}</div>}
+      {lines.length === 0 ? (
+        <div className="muted small">No peer traffic yet.</div>
+      ) : (
+        <ul className="office-peek-lines">
+          {lines.map((l) => {
+            const sent = directionOf(l, nodeId) === "sent";
+            return (
+              <li key={l.id}>
+                <span className={sent ? "office-peek-out" : "office-peek-in"}>
+                  {sent ? `→ ${labelOf(l.to)}` : `← ${labelOf(l.from)}`}
+                </span>
+                <span className="office-peek-text">{l.text}</span>
+              </li>
+            );
+          })}
+        </ul>
+      )}
     </div>
   );
 }
@@ -229,6 +314,8 @@ function Person({
   home,
   away,
   says,
+  unread,
+  onPeek,
   onSelect,
 }: {
   name: string;
@@ -239,6 +326,8 @@ function Person({
   home: { x: number; y: number };
   away: boolean;
   says: string | null;
+  unread: number;
+  onPeek: (on: boolean) => void;
   onSelect: () => void;
 }) {
   const colour = harnessColor(harness);
@@ -253,6 +342,10 @@ function Person({
       transform={`translate(${at.x} ${at.y})`}
       style={{ transitionDuration: `${ms}ms` }}
       onClick={onSelect}
+      onMouseEnter={() => onPeek(true)}
+      onMouseLeave={() => onPeek(false)}
+      onFocus={() => onPeek(true)}
+      onBlur={() => onPeek(false)}
       role="button"
       tabIndex={0}
       onKeyDown={(e) => {
@@ -278,11 +371,28 @@ function Person({
         </g>
       )}
 
+      {/* On the floor only while standing. A token with a shadow under it
+          reads as lifted, which is the cheapest way to tell sitting from
+          standing without drawing a chair. */}
+      <ellipse className="office-shadow" cy={20} rx={15} ry={4} />
+
       <circle className="office-token" r={17} style={{ fill: colour }} />
       <text className="office-initials" y={5} textAnchor="middle">
         {initials(name)}
       </text>
       <circle className="office-status" cx={13} cy={-13} r={4.5} style={{ fill: dot }} />
+
+      {/* Peer messages this agent has not read yet. Ctrl/Cubicles floats tool
+          indicators over its characters; this is the same idea on data that
+          is counted rather than inferred. */}
+      {unread > 0 && (
+        <g className="office-unread" transform="translate(-15 -14)">
+          <circle r={7.5} />
+          <text y={3} textAnchor="middle">
+            {unread > 9 ? "9+" : unread}
+          </text>
+        </g>
+      )}
       <text className="office-name" y={35} textAnchor="middle">
         {name.length > 14 ? `${name.slice(0, 13)}…` : name}
       </text>

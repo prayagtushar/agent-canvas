@@ -3046,3 +3046,126 @@ body {
     transition: none;
   }
 }
+
+/* ---- the office: standing, unread, and the inspector ---- */
+
+/* Only on the floor while standing. */
+.office-shadow {
+  fill: rgba(0, 0, 0, 0.55);
+  opacity: 0;
+  transition: opacity 220ms ease;
+}
+
+.office-person.is-away .office-shadow {
+  opacity: 1;
+}
+
+.office-unread circle {
+  fill: var(--peer);
+  stroke: #0d1015;
+  stroke-width: 2;
+}
+
+.office-unread text {
+  fill: #14171e;
+  font-family: var(--ui);
+  font-size: 9px;
+  font-weight: 700;
+  pointer-events: none;
+}
+
+/* Anchored to the bottom of the room rather than to the desk, so it never
+   covers the tokens you are watching. */
+.office-peek {
+  position: absolute;
+  left: 50%;
+  bottom: 18px;
+  transform: translateX(-50%);
+  width: min(560px, calc(100% - 48px));
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--glass-line);
+  background: var(--glass-strong);
+  font-family: var(--ui);
+  font-size: 12px;
+  pointer-events: none;
+  animation: office-peek-in 140ms ease both;
+}
+
+@keyframes office-peek-in {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(5px);
+  }
+}
+
+.office-peek-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.office-peek-name {
+  color: var(--txt);
+  font-weight: 600;
+}
+
+.office-peek-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  margin-left: auto;
+}
+
+.office-peek-role {
+  margin-top: 2px;
+  color: var(--dim);
+}
+
+.office-peek-lines {
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.office-peek-lines li {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+}
+
+.office-peek-out,
+.office-peek-in {
+  flex: none;
+  width: 116px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11px;
+}
+
+.office-peek-out {
+  color: var(--peer);
+}
+
+.office-peek-in {
+  color: var(--dim);
+}
+
+.office-peek-text {
+  color: var(--txt);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .office-peek,
+  .office-shadow {
+    animation: none;
+    transition: none;
+  }
+}
