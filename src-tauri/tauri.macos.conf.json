@@ -18,7 +18,8 @@
           ],
           "state": "followsWindowActiveState",
           "radius": 12.0
-        }
+        },
+        "theme": "Dark"
       }
     ]
   }

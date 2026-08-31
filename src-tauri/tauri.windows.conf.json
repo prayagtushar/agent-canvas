@@ -15,7 +15,8 @@
             "mica",
             "acrylic"
           ]
-        }
+        },
+        "theme": "Dark"
       }
     ]
   }

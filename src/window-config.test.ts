@@ -48,6 +48,16 @@ describe("platform window configs", () => {
     expect(platforms.linux.windowEffects).toBeUndefined();
   });
 
+  it("every window declares itself dark", () => {
+    // Mica and vibrancy both choose their material from the window theme
+    // rather than from the stylesheet. Left unset they follow the user's
+    // system theme, and a light-themed Windows rendered a light backdrop
+    // behind an app that is dark throughout: the empty-state text came out
+    // grey on grey. Caught by photographing the Windows window in CI.
+    expect(base.theme).toBe("Dark");
+    for (const win of Object.values(platforms)) expect(win.theme).toBe("Dark");
+  });
+
   it("macOS keeps its native frame, the other two draw their own", () => {
     // `ownFrame` in src/surface.ts is the frontend half of this.
     expect(platforms.macos.decorations).toBe(true);

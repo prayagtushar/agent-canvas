@@ -19,7 +19,8 @@
         "minHeight": 640,
         "transparent": true,
         "shadow": true,
-        "decorations": false
+        "decorations": false,
+        "theme": "Dark"
       }
     ],
     "security": {
