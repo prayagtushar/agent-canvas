@@ -3,7 +3,9 @@
 
    The window is transparent; macOS vibrancy (windowEffects:
    underWindowBackground) blurs the user's real wallpaper behind the
-   whole surface. Everything below layers on top of that.
+   whole surface. Everything below layers on top of that. Where no such
+   effect exists (a browser, Linux) the app paints its own backdrop
+   instead: see "the stage" below.
    Rule of the design: chrome is liquid, content is solid.
 
    Anything that lives INSIDE the canvas (agent windows, notes, cards) is
@@ -85,6 +87,40 @@ body,
   overflow: hidden;
   /* must stay transparent all the way down or vibrancy is occluded */
   background: transparent;
+}
+
+/* The app is dark only. Saying so gets dark scrollbars and form controls
+   without styling either, and stops a light-mode host painting a white page
+   behind a transparent one.
+
+   Scoped to the painted case on purpose. `color-scheme` also decides what
+   the engine uses for the root canvas when no element paints it, and under
+   vibrancy no element does — that is the whole point. Declaring it there
+   risks WebKit filling the canvas and occluding the blur, which is the one
+   regression this change could cause and the one hardest to see. The
+   vibrancy path is left exactly as it was. */
+:root[data-surface="painted"] {
+  color-scheme: dark;
+}
+
+/* ---- the stage --------------------------------------------------------
+   Everything above assumes the OS is blurring wallpaper behind the window.
+   macOS and Windows do. A browser tab and Linux do not, and there the glass
+   has nothing to be glass against: the scrim washes over whatever the host
+   painted, which in a light-mode browser is a white page.
+
+   `applySurface()` in `src/surface.ts` sets this attribute before the first
+   paint. Here the app supplies its own wallpaper instead: four still pools in
+   the harness colours, faint enough to read as one atmosphere rather than
+   four blobs, and darkest where the work sits. No blur is involved, so this
+   costs one paint and nothing after it. */
+:root[data-surface="painted"] body {
+  background-color: #05070e;
+  background-image:
+    radial-gradient(1100px 760px at 14% 6%, rgba(76, 141, 255, 0.20), transparent 62%),
+    radial-gradient(980px 720px at 88% 86%, rgba(163, 113, 247, 0.16), transparent 64%),
+    radial-gradient(820px 680px at 68% 22%, rgba(63, 185, 80, 0.07), transparent 62%),
+    radial-gradient(900px 820px at 34% 96%, rgba(224, 120, 74, 0.09), transparent 60%);
 }
 
 body {

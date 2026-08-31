@@ -3,6 +3,7 @@ import ReactDOM from "react-dom/client";
 import App from "./App";
 import { useStore } from "./store";
 import * as terminals from "./terminals";
+import { applySurface } from "./surface";
 // Self-hosted, OFL-licensed. Bundled so the app has no network dependency.
 import "@fontsource/geist-sans/400.css";
 import "@fontsource/geist-sans/500.css";
@@ -19,6 +20,10 @@ if (import.meta.env.DEV) {
   w.canvas = useStore;
   w.terminals = terminals;
 }
+
+// Before first paint: with no vibrancy behind the window the app has to
+// paint its own backdrop, or the glass has nothing to be glass against.
+applySurface();
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>

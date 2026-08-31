@@ -1,13 +1,14 @@
 import { useEffect, useState } from "react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
+import { ownFrame } from "../surface";
 
-/** True on Windows, where the app draws its own window frame.
+/** Minimise, maximise and close, drawn by us on the platforms that have no
+ *  native frame to use.
  *
  *  macOS keeps its native traffic lights over our title bar, so there is
- *  nothing to draw there. Windows has no frame at all — `decorations: false`
- *  in `tauri.windows.conf.json` — because a native title bar above a custom
- *  one is two title bars. That means minimise, maximise and close are ours. */
-export const isWindows = /Windows/i.test(navigator.userAgent);
+ *  nothing to draw there. Windows and Linux both run `decorations: false`,
+ *  because a native title bar above a custom one is two title bars, so on
+ *  both of them these buttons are the only way to close the window. */
 
 /** Minimise, maximise and close, in the order and shape Windows draws them.
  *  The glyphs are Segoe's, as strokes rather than a font, so they match the
@@ -16,7 +17,7 @@ export default function WindowControls() {
   const [maximized, setMaximized] = useState(false);
 
   useEffect(() => {
-    if (!isWindows) return;
+    if (!ownFrame) return;
     const win = getCurrentWindow();
     let unlisten: (() => void) | undefined;
     let alive = true;
@@ -44,7 +45,7 @@ export default function WindowControls() {
     };
   }, []);
 
-  if (!isWindows) return null;
+  if (!ownFrame) return null;
   const win = getCurrentWindow();
 
   return (

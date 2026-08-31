@@ -98,6 +98,30 @@ Three things must all hold or the wallpaper stops showing through:
    layer stay `background: transparent`. The only paint between wallpaper and
    work is `.canvas-wrap::before`, whose alpha is the `--tint` variable.
 
+### Where there is no wallpaper
+
+Only macOS and Windows ask for a window effect, so only they have anything
+behind the glass. A browser tab has nothing, and neither does Linux. There the
+`--tint` scrim washes over whatever the host painted, and since nothing in the
+app paints a background, that is the host's own page: in a light-mode browser
+the whole interface came out bleached, dark chrome over white.
+
+`src/surface.ts` decides which case this is before the first paint and sets
+`data-surface` on the document. `painted` gets a backdrop of its own from
+`:root[data-surface="painted"] body`, and `vibrancy` gets nothing, leaving
+point 3 above intact.
+
+The test is for the platforms known to supply a backdrop, not against the ones
+known to lack one. A platform nobody has tried gets the painted backdrop and
+looks plain, rather than getting transparency and looking broken. That is why
+`tauri.linux.conf.json` sets `transparent: false`: with the app painting its
+own backdrop there is nothing to let through, and a transparent window would
+only make the result depend on whether a compositor is running.
+
+Linux runs `decorations: false` like Windows, so `ownFrame` covers both and the
+in-app minimise, maximise and close buttons render there too. Without that the
+Linux build had no window controls of either kind.
+
 ## API contract
 
 Keep these names in sync across Rust and TypeScript.

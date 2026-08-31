@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { api } from "../api";
 import { useStore } from "../store";
-import WindowControls, { isWindows } from "./WindowControls";
+import WindowControls from "./WindowControls";
+import { ownFrame } from "../surface";
 import * as updates from "../updates";
 import type { AgentFlowNode } from "../types";
 
@@ -97,7 +98,7 @@ export default function TitleBar() {
   };
 
   return (
-    <div className={`titlebar ${isWindows ? "own-frame" : ""}`}>
+    <div className={`titlebar ${ownFrame ? "own-frame" : ""}`}>
       <span className="tb-logo" aria-hidden="true">
         <svg width="17" height="17" viewBox="0 0 1024 1024">
           <g stroke="#4d97ff" strokeWidth="88" strokeLinecap="round" fill="none">
@@ -199,7 +200,7 @@ export default function TitleBar() {
           Focus
         </button>
         <span className="tb-btn tb-zoom">{zoom}%</span>
-        {!isWindows && <span className="tb-avatar" />}
+        {!ownFrame && <span className="tb-avatar" />}
         <WindowControls />
       </div>
     </div>

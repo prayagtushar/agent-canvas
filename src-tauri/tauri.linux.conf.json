@@ -1,0 +1,10 @@
+{
+  "app": {
+    "windows": [
+      {
+        "transparent": false,
+        "decorations": false
+      }
+    ]
+  }
+}
