@@ -3011,8 +3011,17 @@ body {
 
 /* ---- nobody here yet ---- */
 
+/* Laid over the empty room rather than instead of it. */
 .office-empty {
-  max-width: 440px;
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  max-width: 420px;
+  padding: 16px 20px;
+  border-radius: 12px;
+  border: 1px solid var(--glass-line);
+  background: rgba(8, 11, 18, 0.9);
   text-align: center;
   display: flex;
   flex-direction: column;

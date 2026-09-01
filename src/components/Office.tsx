@@ -42,23 +42,6 @@ export default function Office() {
   }, [approvals]);
 
 
-  if (agents.length === 0) {
-    return (
-      <div className="office">
-        <div className="office-empty">
-          <div className="empty-title">Nobody in yet</div>
-          <div className="empty-sub">
-            Add an agent and it takes a desk. Its token stands up when it does
-            something: carrying a message to a peer, taking work off the board,
-            or coming to you when it needs an answer.
-          </div>
-          <button className="office-back" onClick={() => setOfficeOpen(false)}>
-            Back to the canvas
-          </button>
-        </div>
-      </div>
-    );
-  }
 
   // Which desk the pointer is over. Hovering inspects; clicking still leaves
   // for the canvas.
@@ -109,6 +92,23 @@ export default function Office() {
           revealNode(id);
         }}
       />
+
+      {agents.length === 0 && (
+        // The room still draws, with nobody in it. An empty office is a
+        // better answer to "what is this" than a paragraph describing one,
+        // and it means the view can be looked at before anything is running.
+        <div className="office-empty">
+          <div className="empty-title">Nobody in yet</div>
+          <div className="empty-sub">
+            Add an agent and it takes one of these desks. It sits down to work,
+            walks to a colleague to hand something over, and comes to your desk
+            when it needs an answer from you.
+          </div>
+          <button className="office-back" onClick={() => setOfficeOpen(false)}>
+            Back to the canvas
+          </button>
+        </div>
+      )}
 
       {peeked && (
         <Peek
