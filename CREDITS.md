@@ -24,7 +24,7 @@ the characters look familiar next to
 [agent-office](https://github.com/harishkotra/agent-office) and
 [agents-in-the-office](https://github.com/gukosowa/agents-in-the-office).
 
-## Furniture, floors, carpets and walls
+## Furniture and floor tiles
 
 From **[Pixel Agents](https://github.com/pixel-agents-hq/pixel-agents)**,
 licensed **MIT**.
