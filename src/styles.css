@@ -2805,7 +2805,7 @@ body {
   /* Tight, because the canvas can only scale by whole numbers: a few pixels
      of extra padding is the difference between drawing the room at 3x and
      dropping to 2x, which wastes a third of the window. */
-  padding: 32px 16px 14px;
+  padding: 44px 16px 8px;
   flex-direction: column;
   /* Nearly opaque. At anything less the canvas reads through as clutter
      behind the floor plan, and two views of the same agents at once is

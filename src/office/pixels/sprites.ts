@@ -21,9 +21,9 @@ export const PERSON_W = 12;
 export const PALETTE: Palette = {
   // room
   "0": "#080b12", // outline, near black
-  "1": "#1c2433", // floor dark
-  "2": "#263143", // floor light
-  "3": "#121824", // grout between tiles
+  "1": "#1e2634", // floor tile
+  "2": "#222b3b", // floor tile, the other one
+  "3": "#182030", // grout between tiles
   "4": "#4a3628", // desk wood, dark
   "5": "#6b4a35", // desk wood
   "6": "#8a6244", // desk wood, lit edge
