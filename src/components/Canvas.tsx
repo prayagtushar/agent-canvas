@@ -260,7 +260,7 @@ function Empty() {
           <div className="empty-sub">
             The interface renders here, but an agent needs a real terminal to
             run in, and a browser tab cannot start one. Use{" "}
-            <code>npm run tauri dev</code>, or download a release.
+            <code>bun run tauri dev</code>, or download a release.
           </div>
         </div>
       </div>

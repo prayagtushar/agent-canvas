@@ -449,7 +449,7 @@ unsigned update is one anybody who controls the release host could write.
 Two commands, once:
 
 ```sh
-bun run tauri signer generate -- -w ~/.tauri/agent-canvas.key
+bun run tauri signer generate -w ~/.tauri/agent-canvas.key
 ```
 
 Then, in `src-tauri/tauri.conf.json`, set both of these together:

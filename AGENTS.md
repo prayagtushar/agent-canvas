@@ -504,6 +504,14 @@ projects in `examples/` are deliberately dependency-free and run on
 Node. Swapping that for `bun test` would quietly change what the examples
 assert, which is the one thing they exist to be trusted about.
 
+The other one: **do not write `--` before a flag you are passing to a script.**
+`npm run tauri build -- --no-bundle` works because npm eats the first separator.
+Bun passes it through, so tauri sees `build -- --no-bundle`, and everything
+after tauri's own `--` is handed to cargo, which has no such flag. Write
+`bun run tauri build --no-bundle`. This broke all three bundle jobs on the
+first push after the move and nothing local caught it, because a release build
+is the one thing not run before committing.
+
 ## Verify
 
 ```sh

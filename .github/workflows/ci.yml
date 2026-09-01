@@ -99,7 +99,11 @@ jobs:
           workspaces: src-tauri
           key: bundle-${{ matrix.os }}
       - run: bun install --frozen-lockfile
-      - run: bun run tauri build -- --no-bundle
+      # No `--` before the flag. npm strips one separator and passes the
+      # rest on; bun does not, so `-- --no-bundle` reaches tauri intact,
+      # and tauri forwards everything after its own `--` to cargo, which
+      # has no --no-bundle. The flag belongs to tauri, so it goes here.
+      - run: bun run tauri build --no-bundle
 
       # Starting it, on the one platform nobody here can start it on.
       #

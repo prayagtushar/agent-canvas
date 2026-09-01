@@ -11,7 +11,7 @@ import type {
 
 /** Whether a Tauri backend is answering at all.
  *
- *  False in a plain browser, where `npm run dev` serves the interface for
+ *  False in a plain browser, where `bun run dev` serves the interface for
  *  design work but nothing behind it exists: a tab cannot spawn a process,
  *  so every command in this file throws. Worth knowing, because the failure
  *  otherwise looks exactly like having no CLIs installed. */
