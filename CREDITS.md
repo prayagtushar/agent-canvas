@@ -29,7 +29,7 @@ the characters look familiar next to
 From **[Pixel Agents](https://github.com/pixel-agents-hq/pixel-agents)**,
 licensed **MIT**.
 
-`src/office/pixels/assets/{furniture,floors,carpets,walls}/`
+`src/office/pixels/assets/{furniture,floors}/`
 
 ```
 MIT License
@@ -57,6 +57,13 @@ SOFTWARE.
 
 MIT requires that notice to travel with the files, which is the reason this
 section quotes it in full rather than linking to it.
+
+The floor tiles are greyscale masters. Pixel Agents ships colour and contrast
+controls for them, and this office does the same thing in
+`PixelOffice.tsx`: the tile is drawn and then multiplied by a tint, which is
+what turns one grey tile into a wood work area and another into a kitchen.
+Without that step the room is uniformly grey, which is how the art looks in the
+files and not how it is meant to look on screen.
 
 ## What was not taken
 

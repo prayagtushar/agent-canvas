@@ -15,14 +15,18 @@ import char3 from "./assets/characters/char_3.png";
 import char4 from "./assets/characters/char_4.png";
 import char5 from "./assets/characters/char_5.png";
 
-/* Surfaces are imported by the job they do, not by their filename.
-   The pack's nine "floors" are all neutral greys — tile, brick, checker — and
-   the warm plank surfaces are in "carpets". Naming them after their role is
-   the only way the renderer reads sensibly. */
-import surfaceMain from "./assets/carpets/carpet_0.png";
-import surfaceDesks from "./assets/carpets/carpet_1.png";
-import surfaceLounge from "./assets/carpets/carpet_2.png";
-import surfaceKitchen from "./assets/floors/floor_1.png";
+/* Surfaces are imported by the job they do, not by their filename, and every
+   one of them is greyscale. That is not an oversight in the pack: Pixel Agents
+   ships floor colour and contrast controls, so these are masters meant to be
+   tinted at draw time. Tinting is what makes a grey tile a wood floor, and it
+   is also how this room stays in the same palette as the rest of the app.
+
+   The "carpets" are marching-squares autotiles rather than repeating tiles, so
+   they are not used here: tiling one paints all sixteen edge pieces and the
+   floor comes out as a maze. Plain floor tiles, tinted, do the same job. */
+import surfacePlain from "./assets/floors/floor_0.png";
+import surfacePanel from "./assets/floors/floor_1.png";
+import surfaceSmall from "./assets/floors/floor_3.png";
 
 import deskFront from "./assets/furniture/DESK/DESK_FRONT.png";
 import pcOff from "./assets/furniture/PC/PC_FRONT_OFF.png";
@@ -73,6 +77,8 @@ export type Atlas = {
     kitchen: HTMLImageElement;
     lounge: HTMLImageElement;
   };
+  /** What to multiply each surface by. Greyscale in, coloured floor out. */
+  tints: Record<"main" | "desks" | "kitchen" | "lounge", string>;
   desk: HTMLImageElement;
   pc: { off: HTMLImageElement; on: HTMLImageElement[] };
   chair: HTMLImageElement;
@@ -108,13 +114,13 @@ export function atlas(): Promise<Atlas> {
   pending = (async () => {
     const [
       c0, c1, c2, c3, c4, c5,
-      sMain, sDesks, sLounge, sKitchen,
+      sPlain, sPanel, sSmall,
       desk, off, on1, on2, on3, chair,
       shelf, dshelf, pl, lpl, cac,
       sofa, table, paint, board, clk, cof, bn,
     ] = await Promise.all([
       load(char0), load(char1), load(char2), load(char3), load(char4), load(char5),
-      load(surfaceMain), load(surfaceDesks), load(surfaceLounge), load(surfaceKitchen),
+      load(surfacePlain), load(surfacePanel), load(surfaceSmall),
       load(deskFront), load(pcOff), load(pcOn1), load(pcOn2), load(pcOn3), load(chairBack),
       load(bookshelf), load(doubleBookshelf), load(plant), load(largePlant), load(cactus),
       load(sofaFront), load(smallTable), load(painting), load(whiteboard), load(clock),
@@ -122,7 +128,15 @@ export function atlas(): Promise<Atlas> {
     ]);
     return {
       characters: [c0, c1, c2, c3, c4, c5],
-      surfaces: { main: sMain, desks: sDesks, kitchen: sKitchen, lounge: sLounge },
+      surfaces: { main: sPlain, desks: sPanel, kitchen: sSmall, lounge: sPanel },
+      tints: {
+        // Dark enough to sit inside a dark app, separated enough that the
+        // three areas read apart at a glance.
+        main: "#39435a",
+        desks: "#6d4c33",
+        kitchen: "#5c6675",
+        lounge: "#6a3f42",
+      },
       desk,
       pc: { off, on: [on1, on2, on3] },
       chair,

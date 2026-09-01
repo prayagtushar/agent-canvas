@@ -2,6 +2,10 @@
 /**
  * Vendor the office sprites.
  *
+ * Note the pack's "carpets" are not taken: they are marching-squares
+ * autotiles, not repeating tiles, so tiling one paints all sixteen edge
+ * pieces and the floor comes out as a maze. Tinted floor tiles do the job.
+ *
  * The pixel office draws third-party art. Rather than committing it with no
  * record of where it came from, this script is the record: it names the
  * source, the licence, and exactly which files are taken, and it can be re-run
@@ -49,7 +53,6 @@ const WANTED = {
     "floor_0.png", "floor_1.png", "floor_2.png", "floor_3.png", "floor_4.png",
     "floor_5.png", "floor_6.png", "floor_7.png", "floor_8.png",
   ],
-  carpets: ["carpet_0.png", "carpet_1.png", "carpet_2.png"],
 };
 
 /** Furniture is a directory each, with a manifest we do not need. */

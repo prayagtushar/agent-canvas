@@ -238,11 +238,16 @@ function put(
   ctx.drawImage(img, Math.round(cx - img.width / 2), Math.round(cy - img.height / 2));
 }
 
-/** Fill a rectangle by repeating a tile, clipping the last row and column
- *  rather than letting them spill past the edge. */
-function tile(
+/** Fill a rectangle by repeating a tile and multiplying it by a colour.
+ *
+ *  The tiles are greyscale masters; the tint is what makes one a wood floor
+ *  and another a kitchen. Multiply keeps the grout and the grain, which a flat
+ *  fill over the top would bury, and clipping keeps the tint inside the area
+ *  rather than over the whole room. */
+function surface(
   ctx: CanvasRenderingContext2D,
   img: HTMLImageElement,
+  tint: string,
   x: number,
   y: number,
   w: number,
@@ -255,6 +260,14 @@ function tile(
       ctx.drawImage(img, 0, 0, cw, ch, x + tx, y + ty, cw, ch);
     }
   }
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(x, y, w, h);
+  ctx.clip();
+  ctx.globalCompositeOperation = "multiply";
+  ctx.fillStyle = tint;
+  ctx.fillRect(x, y, w, h);
+  ctx.restore();
 }
 
 function drawRoom(
@@ -266,11 +279,20 @@ function drawRoom(
 ) {
   // The floor everywhere, then the areas over it. Floor material is what
   // divides a room into places; without it a room is a diagram with props.
-  tile(ctx, art.surfaces.main, 0, 0, ROOM_PX.w, ROOM_PX.h);
+  surface(ctx, art.surfaces.main, art.tints.main, 0, 0, ROOM_PX.w, ROOM_PX.h);
 
   for (const z of ZONES) {
     const r = pixelsOfZone(z);
-    tile(ctx, z.id === "kitchen" ? art.surfaces.kitchen : art.surfaces.lounge, r.x, r.y, r.w, r.h);
+    const kit = z.id === "kitchen";
+    surface(
+      ctx,
+      kit ? art.surfaces.kitchen : art.surfaces.lounge,
+      kit ? art.tints.kitchen : art.tints.lounge,
+      r.x,
+      r.y,
+      r.w,
+      r.h
+    );
   }
 
   // The carpet under the desks, sized to them.
@@ -281,7 +303,7 @@ function drawRoom(
     const x1 = Math.round(Math.max(...xs) + 40);
     const y0 = Math.round(Math.min(...ys) - 28);
     const y1 = Math.round(Math.max(...ys) + 32);
-    tile(ctx, art.surfaces.desks, x0, y0, x1 - x0, y1 - y0);
+    surface(ctx, art.surfaces.desks, art.tints.desks, x0, y0, x1 - x0, y1 - y0);
   }
 
   // Who can see whom, on the floor between the desks.
