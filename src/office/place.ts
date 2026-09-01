@@ -1,4 +1,4 @@
-import { BOARD, DOOR, MANAGER, SHELF, standingAt, type Point } from "./layout";
+import { standingAt, type Point } from "./layout";
 
 /** Somewhere an agent can be sent, and why.
  *
@@ -18,6 +18,19 @@ export type Errand =
   /** Just hired by another agent, and not at a desk yet. */
   | { kind: "arrive" };
 
+/** The fixed places in the room an agent can be sent to.
+ *
+ *  Passed in rather than imported, because the room exists at two scales: the
+ *  arrangement is worked out in the layout's own units and drawn in a much
+ *  smaller pixel grid. Reading the landmarks from one module while being
+ *  handed desks from the other put a blocked agent through the far wall. */
+export type Stations = {
+  manager: Point;
+  board: Point;
+  shelf: Point;
+  door: Point;
+};
+
 export type Placement = {
   point: Point;
   /** True when the agent is away from its desk, so the view can stand the
@@ -36,6 +49,8 @@ export type PlaceInput = {
   /** Where a peer sits, for a peer errand. Missing peers are ignored rather
    *  than sending the agent to the corner of the room. */
   deskOf: (nodeId: string) => Point | undefined;
+  /** The landmarks, in the same units as `desk`. */
+  stations: Stations;
 };
 
 /** Where an agent should be standing right now.
@@ -44,14 +59,14 @@ export type PlaceInput = {
  *  waiting on a person is the single most useful thing this view can show, and
  *  it should not be hidden because a message happened to go out first. */
 export function place(input: PlaceInput): Placement {
-  const { desk, blocked, errand, deskOf } = input;
+  const { desk, blocked, errand, deskOf, stations } = input;
 
   if (blocked) {
     // Further back than a normal visit: your desk is wider than an agent's,
     // and a token parked on top of it reads as furniture rather than as
     // somebody waiting.
     return {
-      point: standingAt(MANAGER, desk, 92),
+      point: standingAt(stations.manager, desk, 34),
       away: true,
       says: "needs you",
     };
@@ -60,24 +75,36 @@ export function place(input: PlaceInput): Placement {
   if (errand?.kind === "peer") {
     const peerDesk = deskOf(errand.peer);
     if (peerDesk) {
-      return { point: standingAt(peerDesk, desk), away: true, says: errand.text };
+      return {
+        point: standingAt(peerDesk, desk, 22),
+        away: true,
+        says: errand.text,
+      };
     }
     // A peer that is not on the canvas: stay put rather than walk nowhere.
     return { point: desk, away: false, says: errand.text };
   }
 
+  if (errand?.kind === "shelf") {
+    return {
+      point: standingAt(stations.shelf, desk, 22),
+      away: true,
+      says: errand.text,
+    };
+  }
+
   if (errand?.kind === "arrive") {
     // Stand in the doorway. Clearing this errand sends the token to its desk,
     // and the walk is the same transition every other trip uses.
-    return { point: DOOR, away: true, says: "just hired" };
-  }
-
-  if (errand?.kind === "shelf") {
-    return { point: standingAt(SHELF, desk), away: true, says: errand.text };
+    return { point: stations.door, away: true, says: "just hired" };
   }
 
   if (errand?.kind === "board") {
-    return { point: standingAt(BOARD, desk), away: true, says: errand.text };
+    return {
+      point: standingAt(stations.board, desk, 22),
+      away: true,
+      says: errand.text,
+    };
   }
 
   return { point: desk, away: false, says: null };

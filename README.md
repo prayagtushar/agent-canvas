@@ -266,21 +266,28 @@ see the new one too.
 
 ### The office
 
-`⌘O` draws the same canvas as a room. Every agent gets a desk, you get the
-desk at the top, and the shared board and memory sit on the walls.
+`⌘O` draws the same canvas as a pixel-art room. Every agent gets a desk and a
+character in its harness colour, you get the desk at the top, and the shared
+board and memory sit on the walls.
+
+Every sprite is written in code as rows of characters, one per pixel, and
+coloured at draw time. Nothing is loaded from disk, so there is no asset
+licence to read and a character can be recoloured per harness without shipping
+four copies of it. The canvas is scaled by a whole number and never smoothed,
+so a drawn pixel is always a square block of screen pixels.
 
 It moves on things that actually happened, not on a timer:
 
 | In the room | What it means |
 | --- | --- |
-| Standing at your desk, "needs you" | That agent called `ask_user` and has stopped |
+| Standing at your desk, "NEEDS YOU" | That agent called `ask_user` and has stopped |
 | Walking to another desk | It sent that peer a message, and the bubble is the message |
 | Walking to the board | It claimed a task, or finished one |
 | Walking to the shelf | It wrote something to shared memory |
 | Coming in through the door | Another agent hired it |
-| Token breathing | Mid-turn |
-| Purple badge on a token | Peer messages it has not read yet |
-| Shadow under a token | It is standing, not sitting |
+| Typing at the desk, screen lit green | Mid-turn |
+| A mark above the head | Blocked on you, or carrying a message |
+| The cat | Nothing at all. It is a cat |
 | Faint line between two desks | They are wired together and can see each other |
 
 Ideas worth taking came from the ones that already exist.

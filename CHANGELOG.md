@@ -25,6 +25,10 @@ Downloads appear on the
 
 ### The office
 
+- `⌘O` draws the canvas as a pixel-art room, rendered on a canvas at whole-number
+  scale. Every sprite is authored in code rather than loaded, so there are no
+  third-party assets. Characters walk with a four-frame cycle, sit and type at
+  their desks with the screen lit while mid-turn, and a cat wanders the floor.
 - `⌘O` draws the canvas as a room: a desk per agent, you at the top, the board
   and memory on the walls. Agents walk to a peer's desk to deliver a message,
   to the board to claim or finish work, to the shelf when they write to shared

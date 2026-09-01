@@ -1,5 +1,14 @@
 import { describe, expect, it } from "vitest";
-import { BOARD, DOOR, MANAGER, SHELF } from "./layout";
+const STATIONS = {
+  manager: { x: 500, y: 78 },
+  board: { x: 92, y: 292 },
+  shelf: { x: 908, y: 292 },
+  door: { x: 92, y: 566 },
+};
+const MANAGER = STATIONS.manager;
+const BOARD = STATIONS.board;
+const SHELF = STATIONS.shelf;
+const DOOR = STATIONS.door;
 import { place, type PlaceInput } from "./place";
 
 const DESK = { x: 500, y: 400 };
@@ -11,6 +20,7 @@ const at = (over: Partial<PlaceInput> = {}) =>
     blocked: false,
     errand: null,
     deskOf: (id) => (id === "peer" ? PEER_DESK : undefined),
+    stations: STATIONS,
     ...over,
   });
 
@@ -96,5 +106,52 @@ describe("the shelf", () => {
   it("still yields to being blocked on you", () => {
     const p = at({ blocked: true, errand: { kind: "shelf", text: "wrote it down" } });
     expect(p.says).toBe("needs you");
+  });
+});
+
+describe("working in whatever units it is handed", () => {
+  // The room exists at two scales: the arrangement is worked out in the
+  // layout's units and drawn in a much smaller pixel grid. Reading the
+  // landmarks from one while being handed desks from the other walked a
+  // blocked agent through the far wall.
+  const SMALL = {
+    manager: { x: 200, y: 31 },
+    board: { x: 37, y: 117 },
+    shelf: { x: 363, y: 117 },
+    door: { x: 37, y: 226 },
+  };
+  const smallDesk = { x: 200, y: 160 };
+
+  const inSmall = (over: Partial<PlaceInput> = {}) =>
+    place({
+      desk: smallDesk,
+      blocked: false,
+      errand: null,
+      deskOf: () => undefined,
+      stations: SMALL,
+      ...over,
+    });
+
+  it("keeps a blocked agent inside a small room", () => {
+    const p = inSmall({ blocked: true });
+    expect(p.point.x).toBeGreaterThan(0);
+    expect(p.point.x).toBeLessThan(400);
+    expect(p.point.y).toBeGreaterThan(0);
+    expect(p.point.y).toBeLessThan(256);
+  });
+
+  it("still walks toward your desk, not past it", () => {
+    const p = inSmall({ blocked: true });
+    const toManager = Math.hypot(p.point.x - SMALL.manager.x, p.point.y - SMALL.manager.y);
+    const deskToManager = Math.hypot(
+      smallDesk.x - SMALL.manager.x,
+      smallDesk.y - SMALL.manager.y
+    );
+    expect(toManager).toBeLessThan(deskToManager);
+    expect(toManager).toBeGreaterThan(0);
+  });
+
+  it("puts an arriving agent exactly in that room's doorway", () => {
+    expect(inSmall({ errand: { kind: "arrive" } }).point).toEqual(SMALL.door);
   });
 });

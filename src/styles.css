@@ -3169,3 +3169,25 @@ body {
     transition: none;
   }
 }
+
+/* ---- the pixel office ----
+   The canvas is scaled by a whole number and never smoothed, so a drawn
+   pixel is a square block of screen pixels. Anything else and the art
+   turns to mush. */
+
+.pixel-wrap {
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.pixel-canvas {
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+  border-radius: 4px;
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.5);
+  cursor: pointer;
+}
