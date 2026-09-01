@@ -44,7 +44,15 @@ describe("the pixel room", () => {
 
   it("scales without reordering", () => {
     expect(desksPx(4)).toHaveLength(4);
-    expect(toPixel({ x: 100, y: 200 })).toEqual({ x: 100 * SCALE, y: 200 * SCALE });
+  });
+
+  it("scales and then rounds, rather than carrying a fraction into a pixel", () => {
+    expect(toPixel({ x: 100, y: 200 })).toEqual({
+      x: Math.round(100 * SCALE),
+      y: Math.round(200 * SCALE),
+    });
+    // 100 * 0.625 is 62.5, and half a pixel is a blurred edge.
+    expect(Number.isInteger(toPixel({ x: 100, y: 100 }).x)).toBe(true);
   });
 });
 

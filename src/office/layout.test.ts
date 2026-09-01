@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { desks, MANAGER, ROOM, rows, standingAt, walkMs } from "./layout";
+import { BOARD, desks, DOOR, MANAGER, ROOM, rows, SHELF, standingAt, walkMs } from "./layout";
 
 describe("rows", () => {
   it("puts everyone in one row until there are more than four", () => {
@@ -99,5 +99,26 @@ describe("walkMs", () => {
   it("is never instant and never tedious", () => {
     expect(walkMs({ x: 0, y: 0 }, { x: 0, y: 0 })).toBeGreaterThanOrEqual(420);
     expect(walkMs({ x: 0, y: 0 }, { x: 9999, y: 9999 })).toBeLessThanOrEqual(1500);
+  });
+});
+
+describe("landmarks", () => {
+  it("hangs the board and the shelf on opposite walls, evenly", () => {
+    // Both were hardcoded against a 1000-wide room. Widening it left the
+    // shelf 24 units short of its own wall, which nothing failed on.
+    expect(BOARD.x).toBeCloseTo(ROOM.w - SHELF.x, 6);
+  });
+
+  it("centres your desk on the room", () => {
+    expect(MANAGER.x).toBeCloseTo(ROOM.w / 2, 6);
+  });
+
+  it("keeps every landmark inside the walls", () => {
+    for (const p of [MANAGER, BOARD, SHELF, DOOR]) {
+      expect(p.x).toBeGreaterThan(0);
+      expect(p.x).toBeLessThan(ROOM.w);
+      expect(p.y).toBeGreaterThan(0);
+      expect(p.y).toBeLessThan(ROOM.h);
+    }
   });
 });

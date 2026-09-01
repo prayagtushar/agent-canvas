@@ -51,6 +51,12 @@ export const PALETTE: Palette = {
   o: "#7a5236", // pot
   c: "#25404c", // carpet
   k: "#1a2e37", // carpet edge
+  t: "#3b4152", // kitchen tile
+  T: "#333949", // kitchen tile, the other one
+  a: "#b9c4d4", // appliance
+  A: "#7e8899", // appliance shadow
+  f: "#7c4a52", // upholstery
+  F: "#5a343b", // upholstery shadow
 };
 
 /* ---------------------------------------------------------------- people --
@@ -543,4 +549,141 @@ export const CAT: Sprite[] = [
     "HHHHHH",
     "H....H",
   ],
+];
+
+/* -------------------------------------------------------- the kitchen -- */
+
+export const FRIDGE: Sprite = [
+  "0000000000",
+  "0aaaaaaaa0",
+  "0aAAAAAAa0",
+  "0aAAAAAAa0",
+  "0aAAAAAa70",
+  "0aaaaaaaa0",
+  "0aAAAAAAa0",
+  "0aAAAAAAa0",
+  "0aAAAAAa70",
+  "0aAAAAAAa0",
+  "0aaaaaaaa0",
+  "0000000000",
+];
+
+export const COFFEE_MACHINE: Sprite = [
+  "00000000",
+  "0444440.",
+  "04LLL40.",
+  "04LLL40.",
+  "0444440.",
+  "04aaa40.",
+  "04a5a40.",
+  "0444440.",
+  "00000000",
+];
+
+export const COUNTER: Sprite = [
+  "000000000000000000000000",
+  "066666666666666666666660",
+  "065555555555555555555560",
+  "064444444444444444444460",
+  "064400444004440044400460",
+  "064444444444444444444460",
+  "066666666666666666666660",
+  "000000000000000000000000",
+];
+
+/* --------------------------------------------------------- the lounge -- */
+
+export const SOFA: Sprite = [
+  "0000000000000000000000",
+  "0ffffffffffffffffffff0",
+  "0fFFFFFFFFFFFFFFFFFFf0",
+  "0fFffffffffffffffffFf0",
+  "0fFffffffffffffffffFf0",
+  "0fFFFFFFFFFFFFFFFFFFf0",
+  "0ffffffffffffffffffff0",
+  "0FF00000000000000000FF0",
+];
+
+export const ARMCHAIR: Sprite = [
+  "0000000000",
+  "0ffffffff0",
+  "0fFFFFFFf0",
+  "0fFffffFf0",
+  "0fFFFFFFf0",
+  "0ffffffff0",
+  "0F000000F0",
+];
+
+export const LOW_TABLE: Sprite = [
+  "000000000000000",
+  "066666666666660",
+  "065555555555560",
+  "064444444444460",
+  "066666666666660",
+  "0.0.........0.0",
+];
+
+export const PAINTING: Sprite = [
+  "0000000000000000",
+  "0666666666666660",
+  "06LLLLLLLLLLLL60",
+  "06LLLLLNNLLLLL60",
+  "06LLLNNNNNLLLL60",
+  "06LNNNNNNNNNLL60",
+  "06NNNNNNNNNNNN60",
+  "0666666666666660",
+  "0000000000000000",
+];
+
+export const BOOKSHELF: Sprite = [
+  "000000000000000000",
+  "066666666666666660",
+  "064444444444444460",
+  "064R4G4Y4L4p4R4G460",
+  "064R4G4Y4L4p4R4G460",
+  "064444444444444460",
+  "066666666666666660",
+  "064p4L4Y4G4R4p4L460",
+  "064p4L4Y4G4R4p4L460",
+  "064444444444444460",
+  "066666666666666660",
+  "000000000000000000",
+];
+
+export const WALL_CLOCK: Sprite = [
+  "..0000..",
+  ".066660.",
+  "06a00a60",
+  "06a00a60",
+  "06aa0aa0",
+  ".066660.",
+  "..0000..",
+];
+
+export const BOXES: Sprite = [
+  "..........",
+  "..0000000.",
+  "..0666660.",
+  "..0644460.",
+  "..0666660.",
+  "000000000.",
+  "066666060.",
+  "064446060.",
+  "066666060.",
+  "000000000.",
+];
+
+/** A taller, spikier plant, so the greenery is not all one shape. */
+export const CACTUS_POT: Sprite = [
+  "..N.....",
+  "..N.N...",
+  "..NNN...",
+  ".NNNN...",
+  "..NNN.N.",
+  "..NNNNN.",
+  "..NNNN..",
+  "...NN...",
+  "..oooo..",
+  "..oooo..",
+  "...oo...",
 ];

@@ -270,6 +270,11 @@ see the new one too.
 character in its harness colour, you get the desk at the top, and the shared
 board and memory sit on the walls.
 
+The room has areas, the way the offices this is modelled on do: a work floor
+with the desks on a carpet, a kitchen corner in tile, and a lounge with a sofa
+and a painting. The floor material is what divides a room into places, and it
+turned out to be the single biggest difference between this and the references.
+
 Every sprite is written in code as rows of characters, one per pixel, and
 coloured at draw time. Nothing is loaded from disk, so there is no asset
 licence to read and a character can be recoloured per harness without shipping

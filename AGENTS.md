@@ -271,6 +271,22 @@ Trips replace rather than queue, each carrying a sequence number so a finishing
 trip cannot clear the one that replaced it. Without that, a busy board leaves
 the office running minutes behind the canvas.
 
+### What the room's size is for
+
+`SCALE` in `src/office/pixels/scene.ts` puts the room at 400x256, or 25x16
+tiles. It is tempting to make it bigger, and I did: 40x25, to match the offices
+this is modelled on. It looked worse. Theirs works because their characters are
+16x32 pixels; ours are 12x16, so every extra tile came back as empty floor with
+the same furniture spread thinner. The room is the size the art is. Grow one and
+you have to grow the other.
+
+Zones are separated from the desks on **x**, not y. The layout centres desks and
+wraps at four per row, so the desk block never reaches the right-hand column
+however many agents there are. An earlier version tucked the lounge under the
+desks, which held until a third row appeared; `zones.test.ts` runs the check to
+twenty-four agents rather than to the default cap, because the cap is a setting
+and this must not depend on it.
+
 ## Agents are real terminals
 
 Each agent is the CLI as the user would run it, on the far end of a pty, drawn

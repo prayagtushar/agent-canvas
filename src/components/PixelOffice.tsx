@@ -23,6 +23,7 @@ import {
   type Sprite,
 } from "../office/pixels/raster";
 import * as art from "../office/pixels/sprites";
+import { catRange, pixelsOfZone, TILE as ZTILE, ZONES, zoneById } from "../office/pixels/zones";
 
 /** The landmarks, in pixel units — the same grid the desks come back in. */
 const STATIONS = {
@@ -124,11 +125,9 @@ export default function PixelOffice({
     let raf = 0;
     let last = performance.now();
     let clock = 0;
-    const cat = {
-      pos: { x: ROOM_PX.w / 2, y: ROOM_PX.h - 40 },
-      to: { x: ROOM_PX.w / 2, y: ROOM_PX.h - 40 },
-      wait: 2000,
-    };
+    const range = catRange();
+    const middle = { x: (range.x0 + range.x1) / 2, y: (range.y0 + range.y1) / 2 };
+    const cat = { pos: { ...middle }, to: { ...middle }, wait: 2000 };
 
     const draw = (now: number) => {
       const dt = Math.min(64, now - last);
@@ -260,6 +259,33 @@ function drawRoom(
     ctx.fillRect(tx * art.TILE, 0, 1, ROOM_PX.h);
   }
 
+  // Areas. The floor material is what divides a room into places, and it is
+  // the thing the reference offices do that a single flat floor cannot.
+  for (const z of ZONES) {
+    const r = pixelsOfZone(z);
+    if (z.id === "kitchen") {
+      for (let ty = 0; ty < z.th; ty++) {
+        for (let tx = 0; tx < z.tw; tx++) {
+          ctx.fillStyle = (tx + ty) % 2 === 0 ? P.t : P.T;
+          ctx.fillRect(r.x + tx * ZTILE, r.y + ty * ZTILE, ZTILE, ZTILE);
+        }
+      }
+    } else {
+      ctx.fillStyle = P.k;
+      ctx.fillRect(r.x, r.y, r.w, r.h);
+      ctx.fillStyle = P.c;
+      ctx.fillRect(r.x + 2, r.y + 2, r.w - 4, r.h - 4);
+      for (let y = r.y + 5; y < r.y + r.h - 3; y += 4) {
+        ctx.fillStyle = P.k;
+        ctx.fillRect(r.x + 3, y, r.w - 6, 1);
+      }
+    }
+    // A hairline round each area, so the edge reads as deliberate.
+    ctx.strokeStyle = "rgba(8,11,18,0.55)";
+    ctx.lineWidth = 1;
+    ctx.strokeRect(r.x + 0.5, r.y + 0.5, r.w - 1, r.h - 1);
+  }
+
   // A rug under the desks, so the working area reads apart from the walkways.
   if (seats.length) {
     const xs = seats.map((s) => s.x);
@@ -309,13 +335,34 @@ function drawRoom(
   put(art.BOARD, BOARD_PX);
   put(art.SHELF, SHELF_PX);
   put(art.DOOR, DOOR_PX);
-  put(art.PLANT, { x: ROOM_PX.w - 22, y: ROOM_PX.h - 26 });
-  put(art.PLANT, { x: 22, y: ROOM_PX.h - 62 });
-  put(art.PLANT, { x: ROOM_PX.w - 24, y: 40 });
-  put(art.COOLER, { x: 26, y: 44 });
-  put(art.CABINET, { x: ROOM_PX.w - 60, y: 40 });
-  put(art.COUCH, { x: ROOM_PX.w / 2 + 40, y: ROOM_PX.h - 22 });
-  put(art.CABINET, { x: 62, y: ROOM_PX.h - 30 });
+  const kitchen = zoneById("kitchen");
+  if (kitchen) {
+    const r = pixelsOfZone(kitchen);
+    put(art.COUNTER, { x: r.x + r.w / 2, y: r.y + 12 });
+    put(art.FRIDGE, { x: r.x + 14, y: r.y + 34 });
+    put(art.COFFEE_MACHINE, { x: r.x + 38, y: r.y + 34 });
+    put(art.COOLER, { x: r.x + r.w - 16, y: r.y + 34 });
+    put(art.WALL_CLOCK, { x: r.x + r.w / 2, y: r.y - 10 });
+  }
+
+  const lounge = zoneById("lounge");
+  if (lounge) {
+    const r = pixelsOfZone(lounge);
+    put(art.SOFA, { x: r.x + r.w / 2, y: r.y + 16 });
+    put(art.LOW_TABLE, { x: r.x + r.w / 2, y: r.y + 42 });
+    put(art.ARMCHAIR, { x: r.x + 14, y: r.y + 44 });
+    put(art.ARMCHAIR, { x: r.x + r.w - 14, y: r.y + 44 });
+    put(art.PAINTING, { x: r.x + r.w / 2, y: r.y - 12 });
+    put(art.PLANT, { x: r.x + 8, y: r.y + r.h - 12 });
+    put(art.PLANT, { x: r.x + r.w - 8, y: r.y + r.h - 12 });
+  }
+
+  // The rest of the room: storage down the left, greenery in the corners.
+  put(art.BOOKSHELF, { x: 40, y: 74 });
+  put(art.CABINET, { x: 26, y: 128 });
+  put(art.BOXES, { x: 34, y: ROOM_PX.h - 90 });
+  put(art.PLANT, { x: 24, y: ROOM_PX.h - 40 });
+  put(art.CACTUS_POT, { x: ROOM_PX.w / 2 - 150, y: ROOM_PX.h - 40 });
 
   label(ctx, "YOU", MANAGER_PX.x, MANAGER_PX.y - 12);
   label(ctx, "BOARD", BOARD_PX.x, BOARD_PX.y + 26);
@@ -360,9 +407,10 @@ function drawCat(
 
   if (gap < 1) {
     if (cat.wait <= 0) {
+      const r = catRange();
       cat.to = {
-        x: 40 + Math.random() * (ROOM_PX.w - 80),
-        y: ROOM_PX.h - 52 + Math.random() * 34,
+        x: r.x0 + Math.random() * (r.x1 - r.x0),
+        y: r.y0 + Math.random() * (r.y1 - r.y0),
       };
       cat.wait = 2600 + Math.random() * 5200;
     }

@@ -6,9 +6,13 @@ import { BOARD, DOOR, MANAGER, ROOM, SHELF, desks, type Point } from "../layout"
  *  arbitrary units. This is only the change of scale into a pixel grid, kept
  *  in one place so the two views cannot end up with agents at different desks.
  *
- *  0.4 puts the room at 400x256, which is 25x16 tiles. Small enough that a
- *  pixel reads as a pixel at any sensible zoom, big enough for eight desks,
- *  a wall of furniture and room to walk between them. */
+ *  0.4 puts the room at 400x256, which is 25x16 tiles: big enough for eight
+ *  desks, a kitchen corner and a place to sit, and small enough that it still
+ *  draws at 3x in a 1440x900 window.
+ *
+ *  0.625 was tried, for a 40x25 room closer to the reference offices. Theirs
+ *  works because their characters are 16x32; ours are half that, so all the
+ *  extra tiles came back as empty floor. */
 export const SCALE = 0.4;
 
 export const ROOM_PX = {

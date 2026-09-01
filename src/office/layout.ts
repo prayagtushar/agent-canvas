@@ -11,16 +11,22 @@
 
 export type Point = { x: number; y: number };
 
+/** 1000x640 scales to a whole number of 16-pixel tiles, which the pixel
+ *  renderer needs and nothing else cares about.
+ *
+ *  Tried widening this to fit more room in. It fits more *floor* in: the
+ *  sprites are drawn for this scale, so a bigger room is the same furniture
+ *  with more gaps between it. The room is the size the art is. */
 export const ROOM = { w: 1000, h: 640 };
 
 /** Your desk. Agents come here when they are blocked on you. */
-export const MANAGER: Point = { x: 500, y: 78 };
+export const MANAGER: Point = { x: ROOM.w / 2, y: 78 };
 
 /** The shared task board, on the left wall. */
 export const BOARD: Point = { x: 92, y: 292 };
 
 /** Shared memory, on the right wall. */
-export const SHELF: Point = { x: 908, y: 292 };
+export const SHELF: Point = { x: ROOM.w - 92, y: 292 };
 
 /** Where a newly hired agent walks in from. */
 export const DOOR: Point = { x: 92, y: 566 };
