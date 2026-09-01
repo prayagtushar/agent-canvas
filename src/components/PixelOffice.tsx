@@ -1,10 +1,18 @@
 import { useEffect, useRef } from "react";
-import { harnessColor } from "../harness";
 import { type Point } from "../office/layout";
 import { place, type Errand } from "../office/place";
 import {
+  atlas,
+  CHAR_H,
+  CHAR_W,
+  faceFor,
+  frameAt,
+  FRAMES,
+  type Atlas,
+  type Facing,
+} from "../office/pixels/atlas";
+import {
   BOARD_PX,
-  corner,
   DOOR_PX,
   desksPx,
   ease,
@@ -15,15 +23,7 @@ import {
   ROOM_PX,
   SHELF_PX,
 } from "../office/pixels/scene";
-import {
-  drawSprite,
-  recolour,
-  widthOf,
-  type Palette,
-  type Sprite,
-} from "../office/pixels/raster";
-import * as art from "../office/pixels/sprites";
-import { catRange, pixelsOfZone, TILE as ZTILE, ZONES, zoneById } from "../office/pixels/zones";
+import { catRange, pixelsOfZone, ZONES, zoneById } from "../office/pixels/zones";
 
 /** The landmarks, in pixel units — the same grid the desks come back in. */
 const STATIONS = {
@@ -57,29 +57,6 @@ type Walker = {
   step: number;
 };
 
-const CSS_COLOUR = /^#|^rgb/;
-
-/** Resolve a harness colour to something canvas can fill with. `harnessColor`
- *  hands back CSS custom properties, which a canvas cannot read. */
-function solid(el: HTMLElement, harness: string): string {
-  const raw = harnessColor(harness);
-  if (CSS_COLOUR.test(raw)) return raw;
-  const name = raw.slice(raw.indexOf("(") + 1, raw.lastIndexOf(")")).trim();
-  const value = getComputedStyle(el).getPropertyValue(name).trim();
-  return value || "#4c8dff";
-}
-
-/** Darken a hex colour, for the shadow side of a shirt. */
-function darken(hex: string, by = 0.42): string {
-  const m = /^#([0-9a-f]{6})$/i.exec(hex.trim());
-  if (!m) return hex;
-  const n = parseInt(m[1], 16);
-  const r = Math.round(((n >> 16) & 255) * (1 - by));
-  const g = Math.round(((n >> 8) & 255) * (1 - by));
-  const b = Math.round((n & 255) * (1 - by));
-  return `#${((r << 16) | (g << 8) | b).toString(16).padStart(6, "0")}`;
-}
-
 export default function PixelOffice({
   bodies,
   edges,
@@ -111,7 +88,10 @@ export default function PixelOffice({
       const box = wrap.getBoundingClientRect();
       // Whole numbers only. A pixel drawn at 2.3x has soft edges, which is the
       // one thing pixel art cannot survive.
-      scale = Math.max(1, Math.floor(Math.min(box.width / ROOM_PX.w, box.height / ROOM_PX.h)));
+      scale = Math.max(
+        1,
+        Math.floor(Math.min(box.width / ROOM_PX.w, box.height / ROOM_PX.h))
+      );
       canvas.width = ROOM_PX.w * scale;
       canvas.height = ROOM_PX.h * scale;
       canvas.style.width = `${canvas.width}px`;
@@ -123,6 +103,12 @@ export default function PixelOffice({
     ro.observe(wrap);
 
     let raf = 0;
+    let alive = true;
+    let art: Atlas | null = null;
+    void atlas().then((a) => {
+      if (alive) art = a;
+    });
+
     let last = performance.now();
     let clock = 0;
     const range = catRange();
@@ -133,14 +119,21 @@ export default function PixelOffice({
       const dt = Math.min(64, now - last);
       last = now;
       clock += dt;
+      raf = requestAnimationFrame(draw);
+
+      ctx.setTransform(scale, 0, 0, scale, 0, 0);
+      // Decoding takes a frame or two. Painting the floor colour meanwhile
+      // beats a white flash.
+      ctx.fillStyle = "#1e2634";
+      ctx.fillRect(0, 0, ROOM_PX.w, ROOM_PX.h);
+      if (!art) return;
 
       const { bodies: bs, edges: es } = latest.current;
       const seats = desksPx(bs.length);
       const seatOf = new Map<string, Point>();
       bs.forEach((b, i) => seats[i] && seatOf.set(b.id, seats[i]));
 
-      ctx.setTransform(scale, 0, 0, scale, 0, 0);
-      drawRoom(ctx, seats, es, seatOf);
+      drawRoom(ctx, art, seats, es, seatOf);
       drawCat(ctx, cat, dt, clock);
 
       // Anyone who has left is forgotten, or the map grows all session.
@@ -148,7 +141,6 @@ export default function PixelOffice({
         if (!bs.some((b) => b.id === id)) walkers.current.delete(id);
       }
 
-      const shirt = canvas;
       // Back to front, so a character lower down overlaps one behind it.
       const order = bs
         .map((b, i) => ({ b, seat: seats[i] }))
@@ -166,7 +158,14 @@ export default function PixelOffice({
 
         let w = walkers.current.get(b.id);
         if (!w) {
-          w = { pos: { ...spot.point }, from: { ...spot.point }, to: { ...spot.point }, t: 1, ms: 1, step: 0 };
+          w = {
+            pos: { ...spot.point },
+            from: { ...spot.point },
+            to: { ...spot.point },
+            t: 1,
+            ms: 1,
+            step: 0,
+          };
           walkers.current.set(b.id, w);
         }
         if (w.to.x !== spot.point.x || w.to.y !== spot.point.y) {
@@ -182,14 +181,13 @@ export default function PixelOffice({
           w.step += dt;
         }
 
-        drawPerson(ctx, shirt, b, w, spot.away, spot.says, clock);
+        drawPerson(ctx, art, b, w, spot.away, spot.says, clock);
       }
-
-      raf = requestAnimationFrame(draw);
     };
     raf = requestAnimationFrame(draw);
 
     return () => {
+      alive = false;
       cancelAnimationFrame(raf);
       ro.disconnect();
     };
@@ -201,9 +199,9 @@ export default function PixelOffice({
     const canvas = canvasRef.current;
     if (!canvas) return null;
     const box = canvas.getBoundingClientRect();
-    const scale = box.width / ROOM_PX.w;
-    const x = (e.clientX - box.left) / scale;
-    const y = (e.clientY - box.top) / scale;
+    const s = box.width / ROOM_PX.w;
+    const x = (e.clientX - box.left) / s;
+    const y = (e.clientY - box.top) / s;
     let best: { id: string; d: number } | null = null;
     for (const [id, w] of walkers.current) {
       const d = Math.hypot(w.pos.x - x, w.pos.y - y);
@@ -230,148 +228,110 @@ export default function PixelOffice({
 
 /* ------------------------------------------------------------------ room -- */
 
+/** Draw an image with its centre at a point, on whole pixels. */
+function put(
+  ctx: CanvasRenderingContext2D,
+  img: HTMLImageElement,
+  cx: number,
+  cy: number
+) {
+  ctx.drawImage(img, Math.round(cx - img.width / 2), Math.round(cy - img.height / 2));
+}
+
+/** Fill a rectangle by repeating a tile, clipping the last row and column
+ *  rather than letting them spill past the edge. */
+function tile(
+  ctx: CanvasRenderingContext2D,
+  img: HTMLImageElement,
+  x: number,
+  y: number,
+  w: number,
+  h: number
+) {
+  for (let ty = 0; ty < h; ty += img.height) {
+    for (let tx = 0; tx < w; tx += img.width) {
+      const cw = Math.min(img.width, w - tx);
+      const ch = Math.min(img.height, h - ty);
+      ctx.drawImage(img, 0, 0, cw, ch, x + tx, y + ty, cw, ch);
+    }
+  }
+}
+
 function drawRoom(
   ctx: CanvasRenderingContext2D,
+  art: Atlas,
   seats: Point[],
   edges: [string, string][],
   seatOf: Map<string, Point>
 ) {
-  const P = art.PALETTE;
+  // The floor everywhere, then the areas over it. Floor material is what
+  // divides a room into places; without it a room is a diagram with props.
+  tile(ctx, art.surfaces.main, 0, 0, ROOM_PX.w, ROOM_PX.h);
 
-  // Floor: alternating tiles with a grout line between them. The grout is
-  // what makes it read as a floor rather than as a checkerboard pattern —
-  // without it the two tones just vibrate against each other.
-  ctx.fillStyle = P["1"];
-  ctx.fillRect(0, 0, ROOM_PX.w, ROOM_PX.h);
-  for (let ty = 0; ty * art.TILE < ROOM_PX.h; ty++) {
-    for (let tx = 0; tx * art.TILE < ROOM_PX.w; tx++) {
-      if ((tx + ty) % 2 === 0) {
-        ctx.fillStyle = P["2"];
-        ctx.fillRect(tx * art.TILE, ty * art.TILE, art.TILE, art.TILE);
-      }
-    }
-  }
-  ctx.fillStyle = P["3"];
-  for (let ty = 0; ty * art.TILE <= ROOM_PX.h; ty++) {
-    ctx.fillRect(0, ty * art.TILE, ROOM_PX.w, 1);
-  }
-  for (let tx = 0; tx * art.TILE <= ROOM_PX.w; tx++) {
-    ctx.fillRect(tx * art.TILE, 0, 1, ROOM_PX.h);
-  }
-
-  // Areas. The floor material is what divides a room into places, and it is
-  // the thing the reference offices do that a single flat floor cannot.
   for (const z of ZONES) {
     const r = pixelsOfZone(z);
-    if (z.id === "kitchen") {
-      for (let ty = 0; ty < z.th; ty++) {
-        for (let tx = 0; tx < z.tw; tx++) {
-          ctx.fillStyle = (tx + ty) % 2 === 0 ? P.t : P.T;
-          ctx.fillRect(r.x + tx * ZTILE, r.y + ty * ZTILE, ZTILE, ZTILE);
-        }
-      }
-    } else {
-      ctx.fillStyle = P.k;
-      ctx.fillRect(r.x, r.y, r.w, r.h);
-      ctx.fillStyle = P.c;
-      ctx.fillRect(r.x + 2, r.y + 2, r.w - 4, r.h - 4);
-      for (let y = r.y + 5; y < r.y + r.h - 3; y += 4) {
-        ctx.fillStyle = P.k;
-        ctx.fillRect(r.x + 3, y, r.w - 6, 1);
-      }
-    }
-    // A hairline round each area, so the edge reads as deliberate.
-    ctx.strokeStyle = "rgba(8,11,18,0.55)";
-    ctx.lineWidth = 1;
-    ctx.strokeRect(r.x + 0.5, r.y + 0.5, r.w - 1, r.h - 1);
+    tile(ctx, z.id === "kitchen" ? art.surfaces.kitchen : art.surfaces.lounge, r.x, r.y, r.w, r.h);
   }
 
-  // A rug under the desks, so the working area reads apart from the walkways.
+  // The carpet under the desks, sized to them.
   if (seats.length) {
     const xs = seats.map((s) => s.x);
     const ys = seats.map((s) => s.y);
-    const x0 = Math.min(...xs) - 34;
-    const x1 = Math.max(...xs) + 34;
-    const y0 = Math.min(...ys) - 22;
-    const y1 = Math.max(...ys) + 26;
-    ctx.fillStyle = P.k;
-    ctx.fillRect(x0, y0, x1 - x0, y1 - y0);
-    ctx.fillStyle = P.c;
-    ctx.fillRect(x0 + 2, y0 + 2, x1 - x0 - 4, y1 - y0 - 4);
-    // A woven line every few pixels, so a large flat area still has texture.
-    ctx.fillStyle = P.k;
-    for (let y = y0 + 5; y < y1 - 3; y += 4) {
-      ctx.fillRect(x0 + 3, y, x1 - x0 - 6, 1);
-    }
+    const x0 = Math.round(Math.min(...xs) - 40);
+    const x1 = Math.round(Math.max(...xs) + 40);
+    const y0 = Math.round(Math.min(...ys) - 28);
+    const y1 = Math.round(Math.max(...ys) + 32);
+    tile(ctx, art.surfaces.desks, x0, y0, x1 - x0, y1 - y0);
   }
 
-  // The top wall, with a lit top face and a darker front.
-  ctx.fillStyle = P.W;
-  ctx.fillRect(0, 0, ROOM_PX.w, 10);
-  ctx.fillStyle = P.w;
-  ctx.fillRect(0, 10, ROOM_PX.w, 6);
-  ctx.fillStyle = P["0"];
-  ctx.fillRect(0, 16, ROOM_PX.w, 1);
-
   // Who can see whom, on the floor between the desks.
-  ctx.strokeStyle = "rgba(61,139,253,0.30)";
+  ctx.strokeStyle = "rgba(61,139,253,0.34)";
   ctx.lineWidth = 1;
   for (const [a, b] of edges) {
     const p = seatOf.get(a);
     const q = seatOf.get(b);
     if (!p || !q) continue;
     ctx.beginPath();
-    ctx.moveTo(p.x + 0.5, p.y + 14.5);
-    ctx.lineTo(q.x + 0.5, q.y + 14.5);
+    ctx.moveTo(p.x + 0.5, p.y + 18.5);
+    ctx.lineTo(q.x + 0.5, q.y + 18.5);
     ctx.stroke();
   }
 
-  const put = (sprite: Sprite, centre: Point, dy = 0) => {
-    const c = corner(centre, widthOf(sprite), sprite.length);
-    drawSprite(ctx, sprite, P, c.x, c.y + dy);
-  };
+  // Your desk, and the fixtures the agents walk to.
+  put(ctx, art.desk, MANAGER_PX.x, MANAGER_PX.y);
+  put(ctx, art.whiteboard, BOARD_PX.x, BOARD_PX.y);
+  put(ctx, art.doubleBookshelf, SHELF_PX.x, SHELF_PX.y);
+  put(ctx, art.bin, DOOR_PX.x, DOOR_PX.y);
 
-  put(art.MANAGER_DESK, MANAGER_PX);
-  put(art.BOARD, BOARD_PX);
-  put(art.SHELF, SHELF_PX);
-  put(art.DOOR, DOOR_PX);
   const kitchen = zoneById("kitchen");
   if (kitchen) {
     const r = pixelsOfZone(kitchen);
-    put(art.COUNTER, { x: r.x + r.w / 2, y: r.y + 12 });
-    put(art.FRIDGE, { x: r.x + 14, y: r.y + 34 });
-    put(art.COFFEE_MACHINE, { x: r.x + 38, y: r.y + 34 });
-    put(art.COOLER, { x: r.x + r.w - 16, y: r.y + 34 });
-    put(art.WALL_CLOCK, { x: r.x + r.w / 2, y: r.y - 10 });
+    put(ctx, art.coffee, r.x + 14, r.y + 16);
+    put(ctx, art.clock, r.x + r.w - 14, r.y + 16);
+    put(ctx, art.table, r.x + r.w / 2, r.y + r.h - 18);
+    put(ctx, art.plant, r.x + r.w - 12, r.y + r.h - 12);
   }
 
   const lounge = zoneById("lounge");
   if (lounge) {
     const r = pixelsOfZone(lounge);
-    put(art.SOFA, { x: r.x + r.w / 2, y: r.y + 16 });
-    put(art.LOW_TABLE, { x: r.x + r.w / 2, y: r.y + 42 });
-    put(art.ARMCHAIR, { x: r.x + 14, y: r.y + 44 });
-    put(art.ARMCHAIR, { x: r.x + r.w - 14, y: r.y + 44 });
-    put(art.PAINTING, { x: r.x + r.w / 2, y: r.y - 12 });
-    put(art.PLANT, { x: r.x + 8, y: r.y + r.h - 12 });
-    put(art.PLANT, { x: r.x + r.w - 8, y: r.y + r.h - 12 });
+    put(ctx, art.sofa, r.x + r.w / 2, r.y + 12);
+    put(ctx, art.table, r.x + r.w / 2, r.y + r.h - 20);
+    put(ctx, art.painting, r.x + r.w / 2, r.y - 10);
+    put(ctx, art.largePlant, r.x + 12, r.y + r.h - 14);
   }
 
-  // The rest of the room: storage down the left, greenery in the corners.
-  put(art.BOOKSHELF, { x: 40, y: 74 });
-  put(art.CABINET, { x: 26, y: 128 });
-  put(art.BOXES, { x: 34, y: ROOM_PX.h - 90 });
-  put(art.PLANT, { x: 24, y: ROOM_PX.h - 40 });
-  put(art.CACTUS_POT, { x: ROOM_PX.w / 2 - 150, y: ROOM_PX.h - 40 });
+  // The rest of the room.
+  put(ctx, art.bookshelf, 46, 58);
+  put(ctx, art.bookshelf, 46, 74);
+  put(ctx, art.largePlant, 26, ROOM_PX.h - 54);
+  put(ctx, art.cactus, ROOM_PX.w / 2 - 136, ROOM_PX.h - 40);
+  put(ctx, art.plant, ROOM_PX.w / 2 + 136, ROOM_PX.h - 40);
 
-  label(ctx, "YOU", MANAGER_PX.x, MANAGER_PX.y - 12);
-  label(ctx, "BOARD", BOARD_PX.x, BOARD_PX.y + 26);
-  label(ctx, "MEMORY", SHELF_PX.x, SHELF_PX.y + 28);
-  label(ctx, "DOOR", DOOR_PX.x, DOOR_PX.y + 20);
-
+  // Each desk, with its chair behind it.
   for (const seat of seats) {
-    put(art.CHAIR, { x: seat.x, y: seat.y + 20 });
-    put(art.DESK, { x: seat.x, y: seat.y + 6 });
+    put(ctx, art.chair, seat.x, seat.y + 28);
+    put(ctx, art.desk, seat.x, seat.y + 10);
   }
 
   vignette(ctx);
@@ -379,9 +339,9 @@ function drawRoom(
 
 /** Darken the edges of the room, in steps rather than a gradient.
  *
- *  A smooth falloff over hard pixels reads as a rendering fault, so this is
- *  four one-pixel frames of increasing transparency: at any zoom it still
- *  looks drawn rather than filtered. */
+ *  A smooth falloff over hard pixels reads as a rendering fault, so this is a
+ *  few one-pixel frames of increasing transparency: at any zoom it still looks
+ *  drawn rather than filtered. */
 function vignette(ctx: CanvasRenderingContext2D) {
   const steps = [0.3, 0.22, 0.15, 0.09, 0.05];
   steps.forEach((alpha, i) => {
@@ -391,9 +351,9 @@ function vignette(ctx: CanvasRenderingContext2D) {
   });
 }
 
-/** The cat. Picks somewhere along the bottom of the room, ambles over, sits
- *  for a while, picks somewhere else. It stays out of the desk rows so it is
- *  never mistaken for an agent going somewhere. */
+/** The cat. Ambles around the lounge, sits, picks somewhere else. It means
+ *  nothing, which is exactly why it is a cat and not a character: agent
+ *  movement in this room is always evidence something happened. */
 function drawCat(
   ctx: CanvasRenderingContext2D,
   cat: { pos: Point; to: Point; wait: number },
@@ -419,80 +379,108 @@ function drawCat(
     cat.pos = { x: cat.pos.x + (dx / gap) * step, y: cat.pos.y + (dy / gap) * step };
   }
 
-  const moving = gap >= 1;
-  const frame = art.CAT[moving ? Math.floor(clock / 200) % art.CAT.length : 0];
-  const c = corner(cat.pos, widthOf(frame), frame.length);
-  drawSprite(ctx, frame, art.PALETTE, Math.round(c.x), Math.round(c.y), dx < 0);
+  const walking = gap >= 1;
+  const x = Math.round(cat.pos.x);
+  const y = Math.round(cat.pos.y) - (walking && Math.floor(clock / 200) % 2 ? 1 : 0);
+  ctx.fillStyle = "#241d16";
+  ctx.fillRect(x - 3, y - 2, 6, 4);
+  ctx.fillRect(x - 3, y - 4, 1, 2);
+  ctx.fillRect(x + 2, y - 4, 1, 2);
+  ctx.fillRect(x + (dx < 0 ? -5 : 3), y - 3, 2, 1);
 }
 
 /* ---------------------------------------------------------------- people -- */
 
 function drawPerson(
   ctx: CanvasRenderingContext2D,
-  host: HTMLElement,
+  art: Atlas,
   b: Body,
   w: Walker,
   away: boolean,
   says: string | null,
   clock: number
 ) {
-  const base = solid(host, b.harness);
-  const P: Palette = recolour(art.PALETTE, { C: base, D: darken(base) });
-
+  const sheet = art.characters[faceFor(b.id, art.characters.length)];
   const walking = w.t < 1;
   const x = Math.round(w.pos.x);
   const y = Math.round(w.pos.y);
 
-  if (!away && !walking) {
-    // At the desk. Typing while mid-turn, still otherwise.
-    const monitorOn = b.status === "running";
-    const screen = monitorOn ? art.PALETTE.G : art.PALETTE.L;
-    const mp = recolour(P, { L: screen });
-    const mc = corner({ x, y: y - 4 }, widthOf(art.MONITOR), art.MONITOR.length);
-    // Light spilling onto the desk. Stepped rather than a gradient: a smooth
-    // falloff among hard pixels looks like a rendering mistake.
-    if (monitorOn) {
-      ctx.fillStyle = "rgba(47,212,94,0.16)";
-      ctx.fillRect(x - 11, y + 1, 22, 8);
-      ctx.fillStyle = "rgba(47,212,94,0.13)";
-      ctx.fillRect(x - 8, y + 1, 16, 10);
-    }
-    drawSprite(ctx, art.MONITOR, mp, mc.x, mc.y);
+  let face: Facing;
+  let frame: number;
 
-    const frames = monitorOn ? art.PERSON_TYPING : [art.PERSON_SITTING];
-    const f = frames[Math.floor(clock / 170) % frames.length];
-    const pc = corner({ x, y: y + 14 }, art.PERSON_W, f.length);
-    drawSprite(ctx, f, P, pc.x, pc.y);
+  if (!away && !walking) {
+    // At the desk, facing the monitor, which is up the screen from here.
+    face = "up";
+    frame =
+      b.status === "running"
+        ? FRAMES.typing[Math.floor(clock / 170) % FRAMES.typing.length]
+        : FRAMES.idle;
+    const screen =
+      b.status === "running"
+        ? art.pc.on[Math.floor(clock / 220) % art.pc.on.length]
+        : art.pc.off;
+    put(ctx, screen, x, y - 2);
   } else {
     const dir = facing(w.from, w.to);
-    const flip = mirrored(w.from, w.to);
-    const set =
-      dir === "up" ? art.PERSON_UP : dir === "down" ? art.PERSON_DOWN : art.PERSON_SIDE;
-    // stand, A, stand, B — a rock rather than a march.
-    const cycle = [0, 1, 0, 2];
-    const frame = walking ? set[cycle[Math.floor(w.step / 120) % cycle.length]] : set[0];
-    const pc = corner({ x, y }, art.PERSON_W, art.PERSON_H);
-    drawSprite(ctx, frame, P, pc.x, pc.y, flip);
+    face = dir === "side" ? (mirrored(w.from, w.to) ? "left" : "right") : dir;
+    frame = walking
+      ? FRAMES.walk[Math.floor(w.step / 130) % FRAMES.walk.length]
+      : FRAMES.idle;
   }
 
-  // A mark above the head for the thing worth noticing, and only one: a
-  // character wearing three badges tells you nothing.
-  const emote = b.blocked
-    ? art.EMOTE_WAITING
-    : away
-      ? art.EMOTE_MESSAGE
-      : b.unread > 0
-        ? art.EMOTE_MESSAGE
-        : null;
-  if (emote) {
-    const bob = Math.round(Math.sin(clock / 260) * 1);
-    const ec = corner({ x, y: y - 16 + bob }, widthOf(emote), emote.length);
-    drawSprite(ctx, emote, art.PALETTE, ec.x, ec.y);
+  drawFrame(ctx, sheet, face, frame, x, y + 10);
+
+  // One mark above the head, for the thing worth noticing. A character
+  // wearing three badges tells you nothing.
+  const bob = Math.round(Math.sin(clock / 260));
+  if (b.blocked) mark(ctx, x, y - 30 + bob, "#febc2e", "!");
+  else if (away) mark(ctx, x, y - 30 + bob, "#d8b4fe", ">");
+  else if (b.unread > 0) {
+    mark(ctx, x, y - 30 + bob, "#d8b4fe", String(Math.min(9, b.unread)));
   }
 
-  label(ctx, b.label.toUpperCase().slice(0, 10), x, y + (away || walking ? 14 : 20), base);
+  label(ctx, b.label.toUpperCase().slice(0, 10), x, y + 16);
 
-  if (says) speech(ctx, says, x, y - 30);
+  if (says) speech(ctx, says, x, y - 44);
+}
+
+/** One frame of a character sheet, mirrored if it is a left-facing pose.
+ *  The sprite stands on its feet: the point given is where the feet are. */
+function drawFrame(
+  ctx: CanvasRenderingContext2D,
+  sheet: HTMLImageElement,
+  face: Facing,
+  frame: number,
+  cx: number,
+  feetY: number
+) {
+  const { sx, sy, flip } = frameAt(face, frame);
+  const x = Math.round(cx - CHAR_W / 2);
+  const y = Math.round(feetY - CHAR_H);
+  if (!flip) {
+    ctx.drawImage(sheet, sx, sy, CHAR_W, CHAR_H, x, y, CHAR_W, CHAR_H);
+    return;
+  }
+  ctx.save();
+  ctx.translate(x + CHAR_W, y);
+  ctx.scale(-1, 1);
+  ctx.drawImage(sheet, sx, sy, CHAR_W, CHAR_H, 0, 0, CHAR_W, CHAR_H);
+  ctx.restore();
+}
+
+/** A small square badge over a head. */
+function mark(
+  ctx: CanvasRenderingContext2D,
+  cx: number,
+  cy: number,
+  colour: string,
+  glyph: string
+) {
+  ctx.fillStyle = "#080b12";
+  ctx.fillRect(cx - 5, cy - 5, 10, 10);
+  ctx.fillStyle = colour;
+  ctx.fillRect(cx - 4, cy - 4, 8, 8);
+  drawText(ctx, glyph, cx - 1, cy - 2, "#14171e");
 }
 
 /* ------------------------------------------------------------------ text --
@@ -538,6 +526,7 @@ const GLYPHS: Record<string, string[]> = {
   "8": ["010", "101", "010", "101", "010"],
   "9": ["010", "101", "011", "001", "110"],
   "-": ["000", "000", "111", "000", "000"],
+  ">": ["100", "010", "001", "010", "100"],
   ".": ["000", "000", "000", "000", "010"],
   "?": ["110", "001", "010", "000", "010"],
   "!": ["010", "010", "010", "000", "010"],
@@ -576,18 +565,12 @@ function drawText(
 
 /** A centred label with a dark backing, so a name stays readable over a rug
  *  or a desk. */
-function label(
-  ctx: CanvasRenderingContext2D,
-  text: string,
-  cx: number,
-  y: number,
-  colour = art.PALETTE["7"]
-) {
+function label(ctx: CanvasRenderingContext2D, text: string, cx: number, y: number) {
   const w = textWidth(text);
   const x = Math.round(cx - w / 2);
-  ctx.fillStyle = "rgba(8,11,18,0.72)";
+  ctx.fillStyle = "rgba(8,11,18,0.78)";
   ctx.fillRect(x - 2, y - 1, w + 4, GLYPH_H + 2);
-  drawText(ctx, text, x, y, colour);
+  drawText(ctx, text, x, y, "#c6d2e4");
 }
 
 /** What an agent is carrying, in a bubble with a tail. */
@@ -595,10 +578,10 @@ function speech(ctx: CanvasRenderingContext2D, text: string, cx: number, y: numb
   const shown = text.toUpperCase().slice(0, 22);
   const w = textWidth(shown);
   const x = Math.round(cx - w / 2);
-  ctx.fillStyle = art.PALETTE["0"];
+  ctx.fillStyle = "#080b12";
   ctx.fillRect(x - 4, y - 3, w + 8, GLYPH_H + 6);
   ctx.fillStyle = "#e8edf6";
   ctx.fillRect(x - 3, y - 2, w + 6, GLYPH_H + 4);
   ctx.fillRect(cx - 1, y + GLYPH_H + 2, 3, 2);
-  drawText(ctx, shown, x, y, art.PALETTE["0"]);
+  drawText(ctx, shown, x, y, "#080b12");
 }

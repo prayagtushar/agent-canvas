@@ -275,11 +275,14 @@ with the desks on a carpet, a kitchen corner in tile, and a lounge with a sofa
 and a painting. The floor material is what divides a room into places, and it
 turned out to be the single biggest difference between this and the references.
 
-Every sprite is written in code as rows of characters, one per pixel, and
-coloured at draw time. Nothing is loaded from disk, so there is no asset
-licence to read and a character can be recoloured per harness without shipping
-four copies of it. The canvas is scaled by a whole number and never smoothed,
-so a drawn pixel is always a square block of screen pixels.
+The art is a real sprite set rather than something drawn by hand here: the
+characters are [MetroCity](https://jik-a-4.itch.io/metrocity-free-topdown-character-pack)
+(CC0) and the furniture comes from
+[Pixel Agents](https://github.com/pixel-agents-hq/pixel-agents) (MIT), the same
+places the other office sims get theirs. [CREDITS.md](CREDITS.md) has the terms
+and [`scripts/vendor-assets.mjs`](scripts/vendor-assets.mjs) is what fetches
+them. The canvas is scaled by a whole number and never smoothed, so a drawn
+pixel is always a square block of screen pixels.
 
 It moves on things that actually happened, not on a timer:
 
@@ -290,7 +293,7 @@ It moves on things that actually happened, not on a timer:
 | Walking to the board | It claimed a task, or finished one |
 | Walking to the shelf | It wrote something to shared memory |
 | Coming in through the door | Another agent hired it |
-| Typing at the desk, screen lit green | Mid-turn |
+| Typing at the desk, screen lit | Mid-turn |
 | A mark above the head | Blocked on you, or carrying a message |
 | The cat | Nothing at all. It is a cat |
 | Faint line between two desks | They are wired together and can see each other |
