@@ -40,7 +40,7 @@ if (examples.length === 0) {
 
 const results = [];
 for (const name of examples) {
-  const run = spawnSync("npm", ["test", "--silent"], {
+  const run = spawnSync("bun", ["run", "--silent", "test"], {
     cwd: join(here, name),
     encoding: "utf8",
     shell: process.platform === "win32",
@@ -86,7 +86,7 @@ console.log(
     .filter((l) => /^(not ok|✖|\s+AssertionError|\s+Cannot find|Error)/.test(l))
     .slice(0, 12)
     .map((l) => `    ${l.trim()}`)
-    .join("\n") || "    (run `npm test` in that folder for the details)"
+    .join("\n") || "    (run `bun run test` in that folder for the details)"
 );
 console.log("");
 process.exit(1);

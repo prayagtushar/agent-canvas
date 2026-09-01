@@ -13,7 +13,7 @@ thing as assertions. Nothing exists yet, so the suite does not even load.
 3. Send it:
 
 ```
-Read SPEC.md and test/notes.test.js, then build src/notes.js so that `npm test` passes all fifteen. Split the work: hire two opencode agents, give each one a part of the spec and tell it which files it owns, and put the parts on the shared board. You integrate and run the tests. Do not edit anything under test/.
+Read SPEC.md and test/notes.test.js, then build src/notes.js so that `bun run test` passes all fifteen. Split the work: hire two opencode agents, give each one a part of the spec and tell it which files it owns, and put the parts on the shared board. You integrate and run the tests. Do not edit anything under test/.
 ```
 
 ## Check it

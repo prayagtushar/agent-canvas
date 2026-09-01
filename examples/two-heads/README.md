@@ -22,7 +22,7 @@ guess.
 ```
 Reviewer: read notes/backend-decisions.md. It is the only copy of those decisions and the Maker cannot see it. Answer their questions about it.
 
-Maker: write src/config.js. It must default-export an object with sessionTtlSeconds, sessionHeader, renewPath and errorCodeExample. You do not have those values and must not guess them — the Reviewer does. Ask them, then run `npm test`.
+Maker: write src/config.js. It must default-export an object with sessionTtlSeconds, sessionHeader, renewPath and errorCodeExample. You do not have those values and must not guess them — the Reviewer does. Ask them, then run `bun run test`.
 ```
 
 Both agents get the same message and each acts on its own half. Nothing to

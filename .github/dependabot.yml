@@ -1,8 +1,11 @@
 # Three ecosystems, because a Tauri app is three projects in a trench coat:
 # the web frontend, the Rust backend, and the workflows that build both.
+#
+# The frontend is `bun`, not `npm`: Dependabot picks the ecosystem from the
+# lockfile it is told to read, and there is no package-lock.json to read.
 version: 2
 updates:
-  - package-ecosystem: npm
+  - package-ecosystem: bun
     directory: /
     schedule:
       interval: weekly
@@ -17,7 +20,7 @@ updates:
           - "@xterm/*"
       # vitest and its coverage provider pin each other exactly, so a bump to
       # one alone cannot install. The first run of this config proved it by
-      # opening a coverage-v8 4.x PR against vitest 3.x that failed npm ci.
+      # opening a coverage-v8 4.x PR against vitest 3.x that would not install.
       vitest:
         patterns:
           - "vitest"

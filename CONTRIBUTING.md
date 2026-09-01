@@ -16,12 +16,16 @@ somewhere else.
 ## Running it from source
 
 ```sh
-npm install
-npm run tauri dev
+bun install
+bun run tauri dev
 ```
 
-You need Node 20 or newer and a Rust toolchain. The first build takes a few
-minutes; after that it is fast.
+You need [Bun](https://bun.sh) and a Rust toolchain. The first build takes a
+few minutes; after that it is fast.
+
+Node is still required, but only for the projects in `examples/`: those run on
+`node --test` and are meant to stay dependency-free, so `bun run test` in one
+of them runs Node rather than Bun's own test runner.
 
 At least one agent CLI needs to be on your PATH for the canvas to do anything:
 Claude Code, Codex, Gemini CLI or opencode.
@@ -29,7 +33,7 @@ Claude Code, Codex, Gemini CLI or opencode.
 ## Before you open the pull request
 
 ```sh
-npm run typecheck && npm run build && npm test
+bun run typecheck && bun run build && bun run test
 cargo fmt --manifest-path src-tauri/Cargo.toml -- --check
 cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings
 ```
@@ -45,9 +49,9 @@ node examples/verify.mjs
 
 ## A passing suite is not evidence for a UI change
 
-Look at it in a real window. `npm run tauri dev`, not the browser.
+Look at it in a real window. `bun run tauri dev`, not the browser.
 
-`npm run dev` serves the interface in a browser for design work, but there is no
+`bun run dev` serves the interface in a browser for design work, but there is no
 backend behind it: a tab cannot spawn a process, so every command throws. The
 canvas tells you as much when you open it there. It is useful for checking
 layout and useless for checking behaviour.

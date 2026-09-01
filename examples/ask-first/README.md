@@ -19,7 +19,7 @@ is not its to invent.
 3. Send it:
 
 ```
-Read SPEC.md and test/limiter.test.js, then build src/limiter.js and src/policy.js so `npm test` passes. Two decisions in the spec are mine, not yours — use ask_user for each one and put my answers in src/policy.js, including a decidedBy line saying they came from me. Do not edit anything under test/.
+Read SPEC.md and test/limiter.test.js, then build src/limiter.js and src/policy.js so `bun run test` passes. Two decisions in the spec are mine, not yours — use ask_user for each one and put my answers in src/policy.js, including a decidedBy line saying they came from me. Do not edit anything under test/.
 ```
 
 An approval card appears at the top right of the canvas. Type your answer and

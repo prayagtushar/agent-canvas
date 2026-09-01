@@ -13,7 +13,7 @@ runner.
 3. Pick **Everyone** in the command bar and send:
 
 ```
-Run `npm test`. Four behaviours in src/cart.js are wrong and the suite says exactly what each should do. Fix them and get all nine tests passing. Do not change anything under test/.
+Run `bun run test`. Four behaviours in src/cart.js are wrong and the suite says exactly what each should do. Fix them and get all nine tests passing. Do not change anything under test/.
 ```
 
 ## Check it

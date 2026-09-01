@@ -83,7 +83,7 @@ React key does not help, and neither does a `key` on the animation itself.
 has to opt out in JavaScript, which `WireEdge` does via `matchMedia`.
 
 A browser screenshot is weak evidence for UI work here. The app runs in a
-transparent WKWebView. Check `npm run tauri dev`.
+transparent WKWebView. Check `bun run tauri dev`.
 
 ## Transparency
 
@@ -403,7 +403,7 @@ any zoom instead of resampling a bitmap.
 - The same binary runs as the GUI and as the MCP bridge. `main.rs` dispatches on
   `--bus-mcp` before any GUI code.
 - `generate_context!` panics without `src-tauri/icons/icon.png`. Regenerate the
-  set with `npm run tauri icon assets/logo.png`.
+  set with `bun run tauri icon assets/logo.png`.
 - The working folder is chosen by the operator and defaults to their home
   directory. Never hardcode a path.
 - `window.canvas` and `window.terminals` exist in dev builds only, for driving
@@ -492,20 +492,32 @@ any zoom instead of resampling a bitmap.
   operator was reading; `revealNode` pans only when the node is off screen and
   never touches the zoom.
 
+## Bun, and where Node still is
+
+The package manager and script runner is Bun. There is no `package-lock.json`;
+`bun.lock` is the lockfile and CI installs with `bun install --frozen-lockfile`.
+
+One thing to be careful of: **`bun test` is not `bun run test`.** The first is
+Bun's own test runner, the second runs the package's `test` script. The
+projects in `examples/` are deliberately dependency-free and run on
+`node --test`, so `examples/verify.mjs` spawns `bun run --silent test` and gets
+Node. Swapping that for `bun test` would quietly change what the examples
+assert, which is the one thing they exist to be trusted about.
+
 ## Verify
 
 ```sh
-npm run typecheck && npm run build && npm test
+bun run typecheck && bun run build && bun run test
 cargo fmt --manifest-path src-tauri/Cargo.toml -- --check
 cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings
 ```
 
-`npm test` runs the frontend suite then the Rust one. The frontend tests cover
+`bun run test` runs the frontend suite then the Rust one. The frontend tests cover
 the store and the terminal registry under jsdom; `src/test-setup.ts` stubs the
 browser APIs jsdom lacks (`matchMedia`, `ResizeObserver`, `CSS.escape`, and a
 working `localStorage`).
 
-Anything visual needs a real browser as well as a passing test: `npm run dev`,
+Anything visual needs a real browser as well as a passing test: `bun run dev`,
 then drive the canvas from the console with `window.canvas` and
 `window.terminals`. The infinite-render bug above typechecked, passed the suite,
 and painted an empty window.
@@ -529,7 +541,7 @@ how a change to launching, wiring or hiring gets checked against real agents
 without anybody having to read terminal output and decide.
 
 ```sh
-npm run test:live
+bun run test:live
 ```
 
 runs the ignored tests against the CLIs installed on this machine: each one is

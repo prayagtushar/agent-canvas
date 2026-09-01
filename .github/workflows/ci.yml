@@ -11,14 +11,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: oven-sh/setup-bun@v2
         with:
-          node-version: 20
-          cache: npm
-      - run: npm ci
-      - run: npm run typecheck
-      - run: npm run test:web
-      - run: npm run build
+          bun-version: latest
+      - run: bun install --frozen-lockfile
+      - run: bun run typecheck
+      - run: bun run test:web
+      - run: bun run build
 
   backend:
     # Both platforms on every push. How a CLI is found and started is the one
@@ -46,12 +45,11 @@ jobs:
           workspaces: src-tauri
           key: ${{ matrix.os }}
       # tauri::generate_context! needs the frontend bundle to exist
-      - uses: actions/setup-node@v4
+      - uses: oven-sh/setup-bun@v2
         with:
-          node-version: 20
-          cache: npm
-      - run: npm ci
-      - run: npm run build
+          bun-version: latest
+      - run: bun install --frozen-lockfile
+      - run: bun run build
       - if: runner.os == 'macOS'
         run: cargo fmt --manifest-path src-tauri/Cargo.toml -- --check
       - run: cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings
@@ -92,17 +90,16 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev \
             librsvg2-dev patchelf libxdo-dev libsoup-3.0-dev
-      - uses: actions/setup-node@v4
+      - uses: oven-sh/setup-bun@v2
         with:
-          node-version: 20
-          cache: npm
+          bun-version: latest
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: src-tauri
           key: bundle-${{ matrix.os }}
-      - run: npm ci
-      - run: npm run tauri build -- --no-bundle
+      - run: bun install --frozen-lockfile
+      - run: bun run tauri build -- --no-bundle
 
       # Starting it, on the one platform nobody here can start it on.
       #

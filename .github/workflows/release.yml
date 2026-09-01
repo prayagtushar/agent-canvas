@@ -2,7 +2,7 @@ name: Release
 
 # Push a tag to cut a release:
 #
-#   npm version 0.2.0 --no-git-tag-version   # keep package.json and Cargo.toml in step
+#   bun pm version 0.2.0 --no-git-tag-version  # keep package.json and Cargo.toml in step
 #   git commit -am "Release 0.2.0" && git tag v0.2.0 && git push --follow-tags
 #
 # Every platform builds in parallel and uploads into one draft release. Check
@@ -53,10 +53,9 @@ jobs:
           sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev \
             librsvg2-dev patchelf libxdo-dev libsoup-3.0-dev
 
-      - uses: actions/setup-node@v4
+      - uses: oven-sh/setup-bun@v2
         with:
-          node-version: 20
-          cache: npm
+          bun-version: latest
 
       - uses: dtolnay/rust-toolchain@stable
         with:
@@ -67,12 +66,12 @@ jobs:
           workspaces: src-tauri
           key: ${{ matrix.target }}
 
-      - run: npm ci
+      - run: bun install --frozen-lockfile
 
       # A broken bundle is worse than a late one: the same checks CI runs on
       # every push, run again on the thing that is actually being shipped.
-      - run: npm run typecheck
-      - run: npm run test:web
+      - run: bun run typecheck
+      - run: bun run test:web
 
       # Signing keys for the in-app updater, read only when
       # `bundle.createUpdaterArtifacts` is on. Leaving that off is the default:

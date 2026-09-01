@@ -185,18 +185,19 @@ Building it yourself avoids both warnings entirely, and is two commands.
 
 ## Running it from source
 
-You need Node 18 or newer, a Rust toolchain, and at least one agent CLI on your
-`PATH`.
+You need [Bun](https://bun.sh), a Rust toolchain, and at least one agent CLI on
+your `PATH`. Node is needed too, but only by the examples in `examples/`, which
+run on `node --test`.
 
 ```sh
-npm install
-npm run tauri dev
+bun install
+bun run tauri dev
 ```
 
 For a bundle you can install:
 
 ```sh
-npm run tauri build
+bun run tauri build
 ```
 
 The result lands in `src-tauri/target/release/bundle/`.
@@ -374,7 +375,7 @@ full, including what counts as a bug here and what is the product working.
 ## Tests
 
 ```sh
-npm test
+bun run test
 ```
 
 Runs the frontend suite and then the Rust one. The frontend suite runs
@@ -383,7 +384,7 @@ but cannot start — see the note in AGENTS.md — while the app itself builds a
 runs there.
 
 ```sh
-npm run examples
+bun run examples
 ```
 
 Runs the three example projects in [`examples/`](examples). All three are red
@@ -401,7 +402,7 @@ on a fresh checkout — that is the starting state, and the point.
 | `tests/worktrees.rs` | a real git repo: branch per agent, edits isolated, asking twice; and diagnostics answering for every harness without hanging |
 
 ```sh
-npm run test:live
+bun run test:live
 ```
 
 Runs the ignored tests against the CLIs installed on your machine. Each one is
@@ -426,7 +427,7 @@ parallel and opens a draft release with all of them attached; check it and
 publish by hand.
 
 ```sh
-npm version 0.2.0 --no-git-tag-version
+bun pm version 0.2.0 --no-git-tag-version
 git commit -am "Release 0.2.0"
 git tag v0.2.0
 git push --follow-tags
@@ -448,7 +449,7 @@ unsigned update is one anybody who controls the release host could write.
 Two commands, once:
 
 ```sh
-npm run tauri signer generate -- -w ~/.tauri/agent-canvas.key
+bun run tauri signer generate -- -w ~/.tauri/agent-canvas.key
 ```
 
 Then, in `src-tauri/tauri.conf.json`, set both of these together:
@@ -487,7 +488,7 @@ changing code: the layout, the API contract between the frontend and Rust, and
 the rendering rules that are easy to break in a transparent window without
 noticing.
 
-One rule worth repeating here. Check UI changes in `npm run tauri dev`, not a
+One rule worth repeating here. Check UI changes in `bun run tauri dev`, not a
 browser. The browser has no backend behind it, and every bug that got furthest
 in this project passed the test suite.
 
