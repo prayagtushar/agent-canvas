@@ -25,16 +25,14 @@ Downloads appear on the
 
 ### The office
 
-- `⌘O` draws the canvas as a pixel-art room, rendered on a canvas at whole-number
-  scale, with the room divided into areas: desks on a carpet, a kitchen corner
-  and a lounge. Characters walk with a four-frame cycle, sit and type at their
-  desks with the screen lit while mid-turn, and a cat wanders the lounge. Art
-  is MetroCity (CC0) and Pixel Agents (MIT); see CREDITS.md.
-- `⌘O` draws the canvas as a room: a desk per agent, you at the top, the board
-  and memory on the walls. Agents walk to a peer's desk to deliver a message,
-  to the board to claim or finish work, to the shelf when they write to shared
-  memory, and to your desk when they are blocked on you. A hired agent comes in
-  through the door.
+- `⌘O` draws the canvas as a pixel-art room: a desk per agent, you at the top,
+  the board and memory on the walls, and the floor divided into a work area, a
+  kitchen corner and a lounge. Agents walk to a peer's desk to deliver a
+  message, to the board to claim or finish work, to the shelf when they write to
+  shared memory, and to your desk when they are blocked on you. A hired agent
+  comes in through the door, and a cat wanders the lounge.
+- Rendered on a canvas at whole-number scale and never smoothed. Art is
+  MetroCity (CC0) and Pixel Agents (MIT); see CREDITS.md.
 - Hovering a desk shows that agent's role, status and recent peer traffic
   without leaving the office. Unread peer messages show as a badge on the
   token, and a token away from its desk casts a shadow so sitting and standing
@@ -75,7 +73,7 @@ Downloads appear on the
 - Cross-platform releases built by GitHub Actions: a universal macOS `.dmg`, an
   `.msi` and `.exe` for Windows, and `.deb`, `.rpm` and `.AppImage` for Linux.
   These are not code-signed, so macOS and Windows both warn on first launch.
-  [The README says how to get past it](README.md#the-first-run-warning).
+  [The README says how to get past it](README.md#install).
 - Update checking, which reports plainly that a build cannot verify an update
   rather than failing at you. Signing keys are not set up yet, so every build so
   far is in exactly that state.
