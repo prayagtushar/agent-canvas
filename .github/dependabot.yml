@@ -1,36 +1,47 @@
-# Three ecosystems, because a Tauri app is three projects in a trench coat:
-# the web frontend, the Rust backend, and the workflows that build both.
+# A Tauri app is three projects in a trench coat: the web frontend, the Rust
+# backend, and the workflows that build both. Two of the three are covered.
 #
-# The frontend is `bun`, not `npm`: Dependabot picks the ecosystem from the
-# lockfile it is told to read, and there is no package-lock.json to read.
+# The frontend is not, and this is why. Dependabot accepts
+# `package-ecosystem: bun` and then fails every run against this repo:
+#
+#   Dependabot::DependencyFileNotSupported
+#   Unsupported bun.lock 'lockfileVersion' 2 in /bun.lock.
+#   The bun version Dependabot runs supports up to 1.
+#
+# Bun 1.4 writes lockfileVersion 2 and offers no flag to write an older one, so
+# there is nothing to fix on this side. A job that goes red every week is worse
+# than an honest gap, so the block below stays commented until Dependabot's
+# bundled bun catches up. Test it by uncommenting and watching one run.
+#
+# Until then, frontend dependencies are bumped by hand: `bun outdated`.
 version: 2
 updates:
-  - package-ecosystem: bun
-    directory: /
-    schedule:
-      interval: weekly
-    open-pull-requests-limit: 5
-    groups:
-      # The Tauri JS packages move together and are meaningless apart.
-      tauri:
-        patterns:
-          - "@tauri-apps/*"
-      xterm:
-        patterns:
-          - "@xterm/*"
-      # vitest and its coverage provider pin each other exactly, so a bump to
-      # one alone cannot install. The first run of this config proved it by
-      # opening a coverage-v8 4.x PR against vitest 3.x that would not install.
-      vitest:
-        patterns:
-          - "vitest"
-          - "@vitest/*"
-      # Same story one layer down: the React plugin requires a matching major
-      # of vite itself.
-      vite:
-        patterns:
-          - "vite"
-          - "@vitejs/*"
+  # - package-ecosystem: bun
+  #   directory: /
+  #   schedule:
+  #     interval: weekly
+  #   open-pull-requests-limit: 5
+  #   groups:
+  #     # The Tauri JS packages move together and are meaningless apart.
+  #     tauri:
+  #       patterns:
+  #         - "@tauri-apps/*"
+  #     xterm:
+  #       patterns:
+  #         - "@xterm/*"
+  #     # vitest and its coverage provider pin each other exactly, so a bump to
+  #     # one alone cannot install. The first run of this config proved it by
+  #     # opening a coverage-v8 4.x PR against vitest 3.x that would not install.
+  #     vitest:
+  #       patterns:
+  #         - "vitest"
+  #         - "@vitest/*"
+  #     # Same story one layer down: the React plugin requires a matching major
+  #     # of vite itself.
+  #     vite:
+  #       patterns:
+  #         - "vite"
+  #         - "@vitejs/*"
 
   - package-ecosystem: cargo
     directory: /src-tauri

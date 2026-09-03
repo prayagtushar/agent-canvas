@@ -512,6 +512,13 @@ after tauri's own `--` is handed to cargo, which has no such flag. Write
 first push after the move and nothing local caught it, because a release build
 is the one thing not run before committing.
 
+Dependabot does not watch the frontend, and that is deliberate rather than an
+oversight. `package-ecosystem: bun` is accepted and then fails every run:
+Bun 1.4 writes `lockfileVersion: 2` and the bun Dependabot bundles reads up to
+1. There is no flag to write an older one. The block is commented out in
+`.github/dependabot.yml` with the error in full. Until it can be turned back
+on, frontend bumps are manual: `bun outdated`.
+
 ## Verify
 
 ```sh
