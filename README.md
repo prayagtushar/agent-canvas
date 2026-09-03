@@ -27,7 +27,7 @@ Download the build for your machine from
 
 | Machine | File |
 | --- | --- |
-| macOS, any Mac since 2020 or earlier | `Agent.Canvas_*_universal.dmg` |
+| macOS, Intel or Apple silicon | `Agent.Canvas_*_universal.dmg` |
 | Windows 10 or 11, 64-bit | `Agent.Canvas_*_x64-setup.exe` or the `.msi` |
 | Linux, x86-64 | `Agent.Canvas_*_amd64.AppImage`, or the `.deb` / `.rpm` |
 
