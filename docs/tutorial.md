@@ -35,17 +35,18 @@ You do not need Claude Code, Codex or Gemini CLI for any of this.
 ## 1. Choose a free model
 
 ```sh
-opencode models | grep free
+opencode models
 ```
 
-Six or so come back. They cost nothing:
+The ones whose names end in `-free` cost nothing, and so does
+`opencode/big-pickle`, which does not advertise it:
 
 | Model | Good for |
 | --- | --- |
 | `opencode/nemotron-3-ultra-free` | The largest of them. Start here. |
 | `opencode/nemotron-3.5-lightning-free` | Faster, weaker. Fine for the Reviewer. |
 | `opencode/mimo-v2.5-free` | A second opinion that is genuinely a different model |
-| `opencode/big-pickle` | Also free, despite the name giving nothing away |
+| `opencode/big-pickle` | Free too, despite the name saying nothing either way |
 
 Make one of them the default by writing `~/.config/opencode/opencode.json`:
 
@@ -59,7 +60,8 @@ Make one of them the default by writing `~/.config/opencode/opencode.json`:
 **This is the step that matters for Agent Canvas.** When the app starts an
 opencode agent it copies that file, adds the Bus to it, and hands the copy to
 the agent. Your model choice carries into every agent on the canvas, and your
-own config is never edited. Set it once here rather than nine times in the app.
+own config is never edited. There is no model picker in the app, and this is
+why: one line here decides it for every agent you start.
 
 Check it took:
 
