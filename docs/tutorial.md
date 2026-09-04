@@ -134,11 +134,13 @@ Both agents get it at once. Now watch four things.
 - **The wire.** A bead runs along it every time one agent messages the other.
   The bead and the `[message from ...]` line in the transcript are the same
   colour, so the bead explains the line that follows it.
-- **⌘J**, which is every message that has crossed a wire this session, in one
-  list.
-- **⌘O**, the office. The same canvas as a pixel-art room, where an agent
-  walks to its peer's desk to deliver a message and stands at the whiteboard
-  when it writes to shared memory. It is reading real events, not miming.
+- **⌘J**, the Traffic panel: every message that has crossed a wire this
+  session, in one list.
+- **⌘O**, the office. The same canvas as a pixel-art room, where an agent walks
+  to its peer's desk to deliver a message and to the shelf when it writes to
+  shared memory. It is reading real events, not miming.
+
+On Windows and Linux, `⌘` is `Ctrl`.
 
 The Maker will edit `src/cart.js`. The Reviewer's job is to catch a "fix" that
 edits the test instead of the bug, which is the failure mode you should expect
