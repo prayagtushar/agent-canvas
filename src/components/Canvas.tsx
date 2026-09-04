@@ -142,17 +142,23 @@ export default function Canvas() {
           color="rgba(255,255,255,0.12)"
         />
         {nodes.length === 0 && <Empty />}
-        <MiniMap
-          pannable
-          zoomable
-          position="bottom-right"
-          bgColor="rgba(10,13,19,0.72)"
-          maskColor="rgba(4,6,11,0.62)"
-          nodeColor={minimapNodeColor}
-          nodeStrokeColor="rgba(255,255,255,0.22)"
-          nodeBorderRadius={3}
-          style={{ width: 182, height: 124, border: "1px solid rgba(255,255,255,0.1)" }}
-        />
+        {/* A map of nothing is a framed empty box in the corner, and the empty
+            canvas is the first thing anyone sees. The minimap already stands
+            down for the dock, focus mode and narrow windows; this is the same
+            rule for the case where there is nothing to map. */}
+        {nodes.length > 0 && (
+          <MiniMap
+            pannable
+            zoomable
+            position="bottom-right"
+            bgColor="rgba(10,13,19,0.72)"
+            maskColor="rgba(4,6,11,0.62)"
+            nodeColor={minimapNodeColor}
+            nodeStrokeColor="rgba(255,255,255,0.22)"
+            nodeBorderRadius={3}
+            style={{ width: 182, height: 124, border: "1px solid rgba(255,255,255,0.1)" }}
+          />
+        )}
       </ReactFlow>
 
       {ctx && (
