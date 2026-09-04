@@ -1,6 +1,13 @@
 import { useState } from "react";
 import { useStore } from "../store";
-import { BUILT_IN, deleteTeam, loadSaved, saveTeam } from "../teams";
+import {
+  BUILT_IN,
+  deleteTeam,
+  harnessSummary,
+  loadSaved,
+  resolveHarnesses,
+  saveTeam,
+} from "../teams";
 import type { Team } from "../types";
 
 /** The launcher: harnesses one at a time, or a whole team at once.
@@ -19,6 +26,16 @@ export default function TeamMenu({ onDone }: { onDone: () => void }) {
 
   const [saved, setSaved] = useState<Team[]>(() => loadSaved());
   const [naming, setNaming] = useState(false);
+
+  // What a team will really start here, not what its template asked for. The
+  // launcher substitutes a missing CLI for one that is installed, and until
+  // this line existed the menu never said so: on a machine with only opencode,
+  // "Second opinion — two different CLIs" started two of the same one.
+  const installed = harnesses.filter((h) => h.available).map((h) => h.name);
+  const labelOf = (name: string) =>
+    harnesses.find((h) => h.name === name)?.label ?? name;
+  const runsOn = (team: Team) =>
+    harnessSummary(resolveHarnesses(team, installed), labelOf);
 
   const start = (team: Team) => {
     onDone();
@@ -42,10 +59,18 @@ export default function TeamMenu({ onDone }: { onDone: () => void }) {
     <>
       <div className="menu-head">Launch a team</div>
       {BUILT_IN.map((t) => (
-        <button key={t.id} className="menu-item team-item" onClick={() => start(t)}>
+        <button
+          key={t.id}
+          className="menu-item team-item"
+          disabled={installed.length === 0}
+          onClick={() => start(t)}
+        >
           <span className="team-name">
             <span>{t.label}</span>
             <span className="team-blurb">{t.blurb}</span>
+            {installed.length > 0 && (
+              <span className="team-runs-on">{runsOn(t)}</span>
+            )}
           </span>
           <span className="muted small">{t.members.length}</span>
         </button>

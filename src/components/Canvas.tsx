@@ -15,7 +15,7 @@ import NoteNode from "./nodes/NoteNode";
 import MemoryNode from "./nodes/MemoryNode";
 import WireEdge from "./WireEdge";
 import { useStore } from "../store";
-import { BUILT_IN } from "../teams";
+import { BUILT_IN, harnessSummary, resolveHarnesses } from "../teams";
 import type { AgentFlowNode } from "../types";
 import { api, hasBackend } from "../api";
 
@@ -332,6 +332,12 @@ function Empty() {
               <span className="empty-team-blurb">{t.blurb}</span>
               <span className="empty-team-count">
                 {t.members.map((m) => m.name).join(" · ")}
+              </span>
+              <span className="empty-team-runs-on">
+                {harnessSummary(
+                  resolveHarnesses(t, installed.map((h) => h.name)),
+                  (n) => installed.find((h) => h.name === n)?.label ?? n
+                )}
               </span>
             </button>
           ))}

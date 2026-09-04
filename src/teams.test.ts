@@ -1,5 +1,12 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { BUILT_IN, deleteTeam, loadSaved, saveTeam } from "./teams";
+import {
+  BUILT_IN,
+  deleteTeam,
+  harnessSummary,
+  loadSaved,
+  resolveHarnesses,
+  saveTeam,
+} from "./teams";
 import type { Team } from "./types";
 
 function team(id: string, label: string): Team {
@@ -97,5 +104,37 @@ describe("teams the operator saved", () => {
   it("survives a corrupt store rather than blocking startup", () => {
     localStorage.setItem("ac.teams", "{not json");
     expect(loadSaved()).toEqual([]);
+  });
+});
+
+describe("which CLI a team actually starts", () => {
+  const team = BUILT_IN.find((t) => t.id === "review-pair")!;
+
+  it("uses the CLI the template asked for when it is installed", () => {
+    expect(resolveHarnesses(team, ["claude", "codex", "opencode"])).toEqual([
+      "claude",
+      "codex",
+    ]);
+  });
+
+  it("falls back to what is installed rather than refusing to run", () => {
+    expect(resolveHarnesses(team, ["opencode"])).toEqual(["opencode", "opencode"]);
+  });
+
+  it("has nothing to start when nothing is installed", () => {
+    expect(resolveHarnesses(team, [])).toEqual([]);
+  });
+
+  it("says ×2 when one CLI is doing every job", () => {
+    expect(harnessSummary(["opencode", "opencode"], (n) => n)).toBe("opencode ×2");
+  });
+
+  it("names each CLI once when they differ", () => {
+    expect(harnessSummary(["claude", "codex"], (n) => n)).toBe("claude, codex");
+  });
+
+  it("uses the display label, not the command name", () => {
+    const label = (n: string) => (n === "claude" ? "Claude Code" : n);
+    expect(harnessSummary(["claude"], label)).toBe("Claude Code");
   });
 });

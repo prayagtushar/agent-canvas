@@ -70,6 +70,10 @@ Pick a working folder from the toolbar, then start a team from the empty canvas.
 That gets you two or three agents, each with a role, already wired together.
 Send one instruction to **Everyone** and watch it divide.
 
+Never run a coding agent before? [Your first canvas](docs/tutorial.md) is a
+fifteen-minute walkthrough that ends with a test suite going from red to green,
+and it costs nothing: opencode's free models are enough for all of it.
+
 `bun run tauri build` produces an installable bundle in
 `src-tauri/target/release/bundle/`.
 
@@ -122,6 +126,7 @@ in [`src-tauri/src/spawn.rs`](src-tauri/src/spawn.rs).
 
 | | |
 | --- | --- |
+| [Your first canvas](docs/tutorial.md) | Start here. Two agents fix a broken test suite, on free models |
 | [Architecture](docs/architecture.md) | How the Bus works, what a wire actually grants, and the full tool list |
 | [Teams](docs/teams.md) | The built-in teams, saving your own, and agents hiring agents |
 | [The office](docs/office.md) | The pixel-art view, what each movement means, and where the art came from |

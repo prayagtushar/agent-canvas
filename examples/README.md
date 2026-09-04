@@ -1,6 +1,6 @@
 # Examples
 
-Three folders you can point Agent Canvas at. Each one is a small project with
+Four folders you can point Agent Canvas at. Each one is a small project with
 a failing test suite, and each one is finished when the suite passes — so
 whether the agents actually did the work is a question with an answer, not a
 matter of reading their output and hoping.
@@ -15,7 +15,8 @@ Nothing here installs anything. They all run on Node's own test runner.
 | [build-the-api](build-the-api) | Fifteen tests, an empty `src/` | Orchestrator |
 
 Start with **fix-the-tests**. It is the shortest and it proves the basics work
-on your machine.
+on your machine. [Your first canvas](../docs/tutorial.md) walks through that
+one step by step, on free models, if this is your first time.
 
 **two-heads** is the one worth running twice: once as written, and once with
 the wire between the two agents deleted. The second run fails, because the
@@ -36,7 +37,7 @@ From the repository root:
 node examples/verify.mjs
 ```
 
-That runs every example and prints a line each. On a fresh checkout all three
+That runs every example and prints a line each. On a fresh checkout all four
 are red, which is the correct starting state. Pass a name to check one:
 
 ```sh

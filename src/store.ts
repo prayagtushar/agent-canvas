@@ -12,6 +12,7 @@ import { api, noAgentsReason } from "./api";
 import { buildReport, reportFilename } from "./report";
 import { away, notify as sendDesktopNotification } from "./notify";
 import * as terminals from "./terminals";
+import { resolveHarnesses } from "./teams";
 import type { Errand } from "./office/place";
 import type {
   Activity,
@@ -496,13 +497,13 @@ export const useStore = create<StoreState>()((set, get) => ({
 
     // A template names the CLI it was written for. If that one is missing,
     // the team still runs — a review pair with two of the same CLI is worth
-    // more than an error message.
-    const pick = (want: string) =>
-      installed.find((h) => h.name === want)?.name ?? installed[0].name;
+    // more than an error message. `resolveHarnesses` is shared with the menu,
+    // so what was advertised is what starts.
+    const chosen = resolveHarnesses(team, installed.map((h) => h.name));
 
     const ids: (string | null)[] = [];
-    for (const m of team.members) {
-      ids.push(await get().launchAgent(pick(m.harness), m.name, m.brief, m.role));
+    for (const [i, m] of team.members.entries()) {
+      ids.push(await get().launchAgent(chosen[i], m.name, m.brief, m.role));
     }
 
     const started = ids.filter((id): id is string => id !== null);

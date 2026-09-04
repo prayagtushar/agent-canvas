@@ -152,6 +152,32 @@ export const BUILT_IN: Team[] = [
   },
 ];
 
+/** Which CLI each member of a team will actually start on this machine.
+ *
+ *  A template names the CLI it was written for, and the launcher substitutes
+ *  rather than refusing when that one is missing. The menu has to ask the same
+ *  question the launcher does, or it offers a team the app will not start:
+ *  somebody whose only CLI is opencode was being shown "Second opinion — two
+ *  different CLIs" and getting two identical ones.
+ *
+ *  `installed` is CLI names, in the order the app found them. */
+export function resolveHarnesses(team: Team, installed: string[]): string[] {
+  if (installed.length === 0) return [];
+  return team.members.map((m) =>
+    installed.includes(m.harness) ? m.harness : installed[0]
+  );
+}
+
+/** The same list as a phrase to put under a team's name: "claude, codex", or
+ *  "opencode ×2" when one CLI is doing every job. */
+export function harnessSummary(names: string[], label: (n: string) => string): string {
+  const counts = new Map<string, number>();
+  for (const n of names) counts.set(n, (counts.get(n) ?? 0) + 1);
+  return [...counts]
+    .map(([n, c]) => (c > 1 ? `${label(n)} \u00d7${c}` : label(n)))
+    .join(", ");
+}
+
 const SAVED_KEY = "ac.teams";
 
 /** Teams the operator saved off their own canvas. */

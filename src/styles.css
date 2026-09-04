@@ -2439,6 +2439,15 @@ body {
   line-height: 1.4;
 }
 
+/* The CLIs a team will actually start on this machine. Quieter than the
+   blurb, because it answers a question you only ask once. */
+.team-runs-on {
+  color: var(--faint);
+  font-size: 10.5px;
+  font-family: var(--mono);
+  line-height: 1.4;
+}
+
 .team-forget {
   color: var(--faint);
   font-size: 11px;
@@ -2522,6 +2531,12 @@ body {
   margin-top: 3px;
   font-size: 10.5px;
   color: var(--peer);
+}
+
+.empty-team-runs-on {
+  font-size: 10.5px;
+  font-family: var(--mono);
+  color: var(--faint);
 }
 
 .empty-or {
