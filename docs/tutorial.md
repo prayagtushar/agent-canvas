@@ -2,7 +2,10 @@
 
 Two agents, one small broken project, and a test suite that goes from red to
 green. Everything here runs on opencode's free models, so it costs nothing.
-Budget about fifteen minutes.
+
+Budget half an hour, most of it spent watching. Free models are slower than the
+paid ones, and a single agent took about fifteen minutes on the project below.
+It did finish: all nine tests, four real bugs, no cheating on the test file.
 
 If you have never run a coding agent before, this is the page to start on. It
 assumes nothing except that you can open a terminal.
@@ -181,8 +184,16 @@ a test rather than by a diagram.
 | A model that is not the one you set | The app copies `~/.config/opencode/opencode.json` when the agent starts, so restart the agent after editing it |
 | Everything stops mid-run | The turn budget, top-left. It exists so two agents talking in circles overnight is not a bill. Click it to raise the cap |
 
-Free models are smaller than the paid ones and it shows. They lose track of a
-long instruction, and they will occasionally "fix" a test rather than the code.
+Free models are smaller and slower than the paid ones and it shows. They lose
+track of a long instruction, and they will occasionally "fix" a test rather than
+the code, which is the Reviewer's whole job to catch. Expect to send a second
+message telling them what is still failing. That is a normal lap, not a broken
+setup.
+
+They do get there. `opencode/nemotron-3-ultra-free` was given the prompt above
+on `fix-the-tests` and took all nine tests green on its own, in about fifteen
+minutes, without touching anything under `test/`.
+
 Nothing about the canvas changes when you point it at a better model later, so
 learn the shape of it here for nothing first.
 
