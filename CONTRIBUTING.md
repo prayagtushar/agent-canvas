@@ -31,6 +31,11 @@ done that the feature belongs somewhere else.
 You need [Bun](https://bun.sh), a Rust toolchain, and at least one agent CLI on
 your `PATH`: Claude Code, Codex, Gemini CLI or opencode.
 
+If you have not used the app itself yet, run
+[the tutorial](docs/tutorial.md) first. It takes half an hour on opencode's
+free models and costs nothing, and knowing what a working canvas looks like
+makes a bug report much easier to write.
+
 ```sh
 bun install
 bun run tauri dev
