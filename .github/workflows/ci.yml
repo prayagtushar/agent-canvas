@@ -193,7 +193,7 @@ jobs:
 
       - name: Keep the picture (Windows)
         if: always() && runner.os == 'Windows'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: windows-window
           path: ${{ runner.temp }}/windows-window.png
@@ -204,7 +204,7 @@ jobs:
 
       - name: Keep the picture either way
         if: always() && runner.os == 'Linux'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: linux-window
           path: |
