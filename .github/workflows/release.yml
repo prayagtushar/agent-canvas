@@ -78,7 +78,7 @@ jobs:
       # with it on and no key, Tauri builds both installers and *then* fails
       # trying to sign, which is a red release with working bundles in it.
       # See "Turning on in-app updates" in the README.
-      - uses: tauri-apps/tauri-action@v0
+      - uses: tauri-apps/tauri-action@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
